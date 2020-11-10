@@ -15,6 +15,7 @@ import matplotlib.pyplot as plt
 import igraph
 from myutils import info, create_readme
 import random
+import pandas as pd
 
 #############################################################
 NONE = 0
@@ -36,8 +37,6 @@ def generate_graph(model, nvertices, avgdegree, rewiringprob,
         erdosprob = avgdegree / nvertices
         if erdosprob > 1: erdosprob = 1
         g = igraph.Graph.Erdos_Renyi(nvertices, erdosprob)
-        breakpoint()
-        
     elif model == 'ba':
         m = round(avgdegree/2)
         if m == 0: m = 1
@@ -53,8 +52,6 @@ def generate_graph(model, nvertices, avgdegree, rewiringprob,
     else:
         msg = 'Please choose a proper topology model'
         raise Exception(msg)
-
-    g = g.clusters().giant()
 
     if model in ['gr', 'wx']:
         aux = np.array([ [g.vs['x'][i], g.vs['y'][i]] for i in range(g.vcount()) ])
@@ -101,25 +98,31 @@ def main():
     np.random.seed(args.seed)
     random.seed(args.seed)
 
-    models = ['er'] # ['ER', 'BA']
-    nvertices = 100
+    # models = ['er'] # ['ER', 'BA']
+    models = ['er', 'ba']  # ['ER', 'BA']
+    nvertices = 1000
     resoratio = .5
     nresources = int(resoratio * nvertices)
-    nucleiratios = [.5] # np.arange(0, 1.01, .2)
+    nucleiratios = [.2, .4, .6, .8] # np.arange(0, 1.01, .2)
     rewiringprob = 0.5
     avgdegree = 5
-    niter = 10
+    niter = 5
 
     res = []
     for model in models:
-        gorig, coords = generate_graph(model, nvertices, avgdegree, rewiringprob)
-        gorig, resoids = add_labels(gorig, nresources, UNIFORM, RESOURCE)
+        # gorig, coords = generate_graph(model, nvertices, avgdegree, rewiringprob)
+        # info('Number of components:{}'.format((gorig.decompose())))
+        # gorig, resoids = add_labels(gorig, nresources, UNIFORM, RESOURCE)
 
         for c in nucleiratios:
             nnuclei = int(c * nvertices)
             for i in range(niter):
                 neighs = []
+                nresources = nvertices - nnuclei
+                gorig, coords = generate_graph(model, nvertices, avgdegree, rewiringprob)
+                gorig, resoids = add_labels(gorig, nresources, UNIFORM, RESOURCE)
                 g, nuclids = add_labels(gorig, nnuclei, UNIFORM, NUCLEUS)
+                
                 for resoid in resoids:
                     # neighids = g.neighbors(resoid)
                     neighids = np.array(g.neighbors(resoid))
@@ -133,7 +136,12 @@ def main():
                 s = lenunique / lenrepeated
                 res.append([model, c, i, r, s])
 
-    print(res)
+    df = pd.DataFrame()
+    cols = ['model', 'c', 'i', 'r', 's']
+    for i, col in enumerate(cols):
+        df[col] = [x[i] for x in res]
+
+    # summary = 
     breakpoint()
 
     info('For Aiur!')
