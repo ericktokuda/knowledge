@@ -65,7 +65,8 @@ def generate_graph(model, nvertices, avgdegree, rewiringprob,
     # coords = (aux - np.mean(aux, 0))/np.std(aux, 0) # standardization
     coords = -1 + 2*(aux - np.min(aux, 0))/(np.max(aux, 0)-np.min(aux, 0)) # minmax
     g.vs['type'] = NONE
-    return g, coords
+    g['coords'] = coords
+    return g
 
 ##########################################################
 def add_labels(gorig, m, choice, label):
@@ -83,6 +84,27 @@ def add_labels(gorig, m, choice, label):
         g.vs[idx]['type'] = label
     return g, sorted(nones[:m])
 
+#############################################################
+def plot_graph(g, coords, plotpath):
+    """Plot the grpah, with vertices colored by accessibility."""
+    info(inspect.stack()[0][3] + '()')
+
+    es = []
+    for e in g.es:
+        es.append([ [float(g.vs[e.source]['x']), float(g.vs[e.source]['y'])],
+                [float(g.vs[e.target]['x']), float(g.vs[e.target]['y'])], ])
+
+    fig, ax = plt.subplots(figsize=(7, 7))
+    sc = ax.scatter(coords[:, 0], coords[:, 1], c='k',
+            linewidths=0, alpha=.8, s=3, zorder=10)
+    segs = LineCollection(es, colors='k', linewidths=.5, alpha=.5)
+    ax.add_collection(segs)
+    # cb = fig.colorbar(sc, shrink=.75)
+    # cb.outline.set_visible(False)
+    ax.axis('off')
+    plt.tight_layout()
+    plt.savefig(plotpath)
+
 ##########################################################
 def main():
     info(inspect.stack()[0][3] + '()')
@@ -98,52 +120,94 @@ def main():
     np.random.seed(args.seed)
     random.seed(args.seed)
 
-    # models = ['er'] # ['ER', 'BA']
-    models = ['er', 'ba']  # ['ER', 'BA']
+    mapside = 500
+    plotzoom = 1
+
+    visual = dict(
+        bbox = (mapside*10*plotzoom, mapside*10*plotzoom),
+        margin = mapside*plotzoom,
+        vertex_size = 5*plotzoom,
+        vertex_shape = 'circle',
+        vertex_frame_width = 0.1*plotzoom,
+        edge_width=1.0
+    )
+
+    models = ['er'] # er, ba
     nvertices = 1000
     resoratio = .5
     nresources = int(resoratio * nvertices)
-    nucleiratios = [.2, .4, .6, .8] # np.arange(0, 1.01, .2)
+    # nucleiratios = np.arange(0, 1.01, .2)
+    nucleiratios = [0.1]
     rewiringprob = 0.5
-    avgdegree = 5
-    niter = 5
+    avgdegrees = [6]
+    niter = 1
+
 
     res = []
-    for model in models:
-        # gorig, coords = generate_graph(model, nvertices, avgdegree, rewiringprob)
-        # info('Number of components:{}'.format((gorig.decompose())))
-        # gorig, resoids = add_labels(gorig, nresources, UNIFORM, RESOURCE)
+    for avgdegree in avgdegrees:
+        for model in models:
+            plotpath = pjoin(args.outdir, '{}.pdf'.format(model))
+            for c in nucleiratios:
+                nnuclei = int(c * nvertices)
+                for i in range(niter):
+                    if c == 0 or c == 1:
+                        res.append([model, avgdegree, c, i, 0, 1.0 - c])
+                        continue
 
-        for c in nucleiratios:
-            nnuclei = int(c * nvertices)
-            for i in range(niter):
-                neighs = []
-                nresources = nvertices - nnuclei
-                gorig, coords = generate_graph(model, nvertices, avgdegree, rewiringprob)
-                gorig, resoids = add_labels(gorig, nresources, UNIFORM, RESOURCE)
-                g, nuclids = add_labels(gorig, nnuclei, UNIFORM, NUCLEUS)
-                
-                for resoid in resoids:
-                    # neighids = g.neighbors(resoid)
-                    neighids = np.array(g.neighbors(resoid))
-                    neightypes = np.array(g.vs[neighids.tolist()]['type'])
-                    localids = np.where(neightypes == RESOURCE)[0]
-                    neighs.extend(neighids[localids])
+                    neighs = []
 
-                lenunique = len(set(neighs))
-                lenrepeated = len(neighs)
-                r = lenunique / nvertices
-                s = lenunique / lenrepeated
-                res.append([model, c, i, r, s])
+                    nresources = nvertices - nnuclei
+                    g = generate_graph(model, nvertices, avgdegree, rewiringprob)
+                    g, resoids = add_labels(g, nresources, UNIFORM, RESOURCE)
+                    g, nuclids = add_labels(g, nnuclei, UNIFORM, NUCLEUS)
+
+                    if not os.path.exists(plotpath):
+                        igraph.plot(g, plotpath, **visual)
+
+                    for nucl in nuclids:
+                        neighids = np.array(g.neighbors(nucl))
+                        neightypes = np.array(g.vs[neighids.tolist()]['type'])
+                        neighresoids = np.where(neightypes == RESOURCE)[0]
+                        neighs.extend(neighids[neighresoids])
+
+                    lenunique = len(set(neighs))
+                    lenrepeated = len(neighs)
+
+                    r = lenunique / nvertices
+                    s = lenunique / lenrepeated if lenunique > 0 else 0
+                    res.append([model, avgdegree, c, i, r, s])
 
     df = pd.DataFrame()
-    cols = ['model', 'c', 'i', 'r', 's']
+    cols = ['model', 'k', 'c', 'i', 'r', 's']
     for i, col in enumerate(cols):
         df[col] = [x[i] for x in res]
 
-    # summary = 
+    dfmean = df.groupby(['model', 'k', 'c']).mean()
+    dfstd = df.groupby(['model', 'k', 'c']).std()
+    cols = list(dfmean.index)
     breakpoint()
+    
 
+    figscale = 8
+    fig, axs = plt.subplots(len(avgdegrees), 2, squeeze=False,
+                figsize=(2*figscale, len(avgdegrees)*figscale*.6))
+
+    for i, k in enumerate(avgdegrees):
+        for j, meas in enumerate(['r', 's']):
+            for model in models:
+                cols = [(model, k, r) for r in nucleiratios]
+                axs[i, j].errorbar(nucleiratios, dfmean.loc[cols][meas].values,
+                                yerr=dfstd.loc[cols][meas].values, label=model)
+                axs[i, j].set_xlabel('c')
+                axs[i, j].set_ylabel(meas)
+                axs[i, j].legend()
+
+    # plt.tight_layout(pad=4, h_pad=1)
+    # plt.figtext(.5, 0.5, 'Effect of bias addition 0.5', ha='center', va='center')
+    # plt.figtext(.5, 0.95, 'Effect of bias addition 1.0', ha='center', va='center')
+
+    outpath = '/tmp/out.png'
+    plt.savefig(outpath)
     info('For Aiur!')
 
     info('Elapsed time:{}'.format(time.time()-t0))
