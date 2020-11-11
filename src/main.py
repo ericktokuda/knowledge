@@ -28,7 +28,7 @@ DEGREE = 1
 def generate_graph(model, nvertices, avgdegree, rewiringprob,
                    latticethoroidal=False, tmpdir='/tmp/'):
     """Generate graph with given topology """
-    info(inspect.stack()[0][3] + '()')
+    # info(inspect.stack()[0][3] + '()')
 
     if model == 'la':
         mapside = int(np.sqrt(nvertices))
@@ -72,7 +72,7 @@ def generate_graph(model, nvertices, avgdegree, rewiringprob,
 def add_labels(gorig, m, choice, label):
     """Add @nresources to the @g.
     We randomly sample the vertices and change their labels"""
-    info(inspect.stack()[0][3] + '()')
+    # info(inspect.stack()[0][3] + '()')
     # TODO: use @choice
     g = gorig.copy()
     types = np.array(g.vs['type'])
@@ -83,27 +83,6 @@ def add_labels(gorig, m, choice, label):
         idx = nones[i]
         g.vs[idx]['type'] = label
     return g, sorted(nones[:m])
-
-#############################################################
-def plot_graph(g, coords, plotpath):
-    """Plot the grpah, with vertices colored by accessibility."""
-    info(inspect.stack()[0][3] + '()')
-
-    es = []
-    for e in g.es:
-        es.append([ [float(g.vs[e.source]['x']), float(g.vs[e.source]['y'])],
-                [float(g.vs[e.target]['x']), float(g.vs[e.target]['y'])], ])
-
-    fig, ax = plt.subplots(figsize=(7, 7))
-    sc = ax.scatter(coords[:, 0], coords[:, 1], c='k',
-            linewidths=0, alpha=.8, s=3, zorder=10)
-    segs = LineCollection(es, colors='k', linewidths=.5, alpha=.5)
-    ax.add_collection(segs)
-    # cb = fig.colorbar(sc, shrink=.75)
-    # cb.outline.set_visible(False)
-    ax.axis('off')
-    plt.tight_layout()
-    plt.savefig(plotpath)
 
 ##########################################################
 def main():
@@ -132,22 +111,23 @@ def main():
         edge_width=1.0
     )
 
-    models = ['er'] # er, ba
+    models = ['er', 'ba'] # er, ba
     nvertices = 1000
     resoratio = .5
     nresources = int(resoratio * nvertices)
-    # nucleiratios = np.arange(0, 1.01, .2)
-    nucleiratios = [0.1]
+    nucleiratios = np.arange(0, 1.01, .05)
+    # nucleiratios = [0.1]
     rewiringprob = 0.5
-    avgdegrees = [6]
-    niter = 1
+    avgdegrees = [6, 20, 100]
+    niter = 2
 
 
     res = []
     for avgdegree in avgdegrees:
         for model in models:
-            plotpath = pjoin(args.outdir, '{}.pdf'.format(model))
+            plotpath = pjoin(args.outdir, '{}_{}.pdf'.format(model, avgdegree))
             for c in nucleiratios:
+                info('{},{},{:.02f}'.format(avgdegree, model, c))
                 nnuclei = int(c * nvertices)
                 for i in range(niter):
                     if c == 0 or c == 1:
@@ -185,10 +165,8 @@ def main():
     dfmean = df.groupby(['model', 'k', 'c']).mean()
     dfstd = df.groupby(['model', 'k', 'c']).std()
     cols = list(dfmean.index)
-    breakpoint()
-    
 
-    figscale = 8
+    figscale = 4
     fig, axs = plt.subplots(len(avgdegrees), 2, squeeze=False,
                 figsize=(2*figscale, len(avgdegrees)*figscale*.6))
 
@@ -202,11 +180,13 @@ def main():
                 axs[i, j].set_ylabel(meas)
                 axs[i, j].legend()
 
-    # plt.tight_layout(pad=4, h_pad=1)
-    # plt.figtext(.5, 0.5, 'Effect of bias addition 0.5', ha='center', va='center')
-    # plt.figtext(.5, 0.95, 'Effect of bias addition 1.0', ha='center', va='center')
+    plt.tight_layout(pad=4, h_pad=1)
+    dh = 1/ len(avgdegrees)
+    for i, k in enumerate(avgdegrees):
+        plt.figtext(.5, 1 - i * dh, '<k>:{}'.format(avgdegree),
+                    ha='center', va='center')
 
-    outpath = '/tmp/out.png'
+    outpath = pjoin(args.outdir, 'plot.png')
     plt.savefig(outpath)
     info('For Aiur!')
 
