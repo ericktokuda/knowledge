@@ -69,6 +69,20 @@ def generate_graph(model, nvertices, avgdegree, rewiringprob,
     return g
 
 ##########################################################
+def weighed_random_sampling(items, weights, cumsumnorm=None):
+    n = len(items)
+    if not cumsumnorm:
+        cumsum = np.cumsum(weights)
+        cumsumnorm = cumsum / cumsum[-1]
+    x = np.random.rand()
+    #binary search to find the item
+
+    for i in range(n):
+        if x < cumsumnorm[i]: return items[i]
+    info('Something wrong x:{}'.format(x))
+    return items[-1]
+
+##########################################################
 def add_labels(gorig, m, choice, label):
     """Add @nresources to the @g.
     We randomly sample the vertices and change their labels"""
@@ -118,9 +132,17 @@ def main():
     nucleiratios = np.arange(0, 1.01, .05)
     # nucleiratios = [0.1]
     rewiringprob = 0.5
-    avgdegrees = [6, 20, 100]
+    # avgdegrees = [6, 20, 100]
+    avgdegrees = [6]
     niter = 2
 
+    items = ['a', 'b', 'c']
+    weights = [10, 100, 40]
+
+    # z = []
+    # for i in range(1000):
+        # z.append(weighed_random_sampling(items, weights))
+    # a, b = np.unique(z, return_counts=True)
 
     res = []
     for avgdegree in avgdegrees:
