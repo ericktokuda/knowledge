@@ -69,34 +69,52 @@ def generate_graph(model, nvertices, avgdegree, rewiringprob,
     return g
 
 ##########################################################
-def weighed_random_sampling(items, weights, cumsumnorm=None):
+def weighed_random_sampling(items, weights, return_idx=False):
     n = len(items)
-    if not cumsumnorm:
-        cumsum = np.cumsum(weights)
-        cumsumnorm = cumsum / cumsum[-1]
+    weights += 1 # TODO: remove this
+    cumsum = np.cumsum(weights)
+    cumsumnorm = cumsum / cumsum[-1]
     x = np.random.rand()
     #binary search to find the item
 
     for i in range(n):
-        if x < cumsumnorm[i]: return items[i]
+        if x < cumsumnorm[i]:
+            if return_idx: return i
+            else: return items[i]
+
     info('Something wrong x:{}'.format(x))
-    return items[-1]
+
+    if return_idx: return -1
+    else: return items[-1]
 
 ##########################################################
 def add_labels(gorig, m, choice, label):
     """Add @nresources to the @g.
     We randomly sample the vertices and change their labels"""
     # info(inspect.stack()[0][3] + '()')
-    # TODO: use @choice
     g = gorig.copy()
     types = np.array(g.vs['type'])
+    degrs = np.array(g.degree())
     nones = np.where(types == NONE)[0]
-    random.shuffle(nones)
+    degrs = degrs[nones]
+
+    if choice == UNIFORM:
+        sample = nones.copy()
+        random.shuffle(sample)
+    elif choice == DEGREE:
+        sample = np.zeros(m, dtype=int)
+        inds = list(range(len(nones)))
+        # nones = list(nones)
+        for i in range(m):
+            sampleidx = weighed_random_sampling(nones, degrs, return_idx=True)
+            sample[i] = nones[sampleidx]
+            nones = np.delete(nones, sampleidx)
+            degrs = np.delete(degrs, sampleidx)
 
     for i in range(m):
-        idx = nones[i]
+        idx = sample[i]
         g.vs[idx]['type'] = label
-    return g, sorted(nones[:m])
+    return g, sorted(sample[:m])
 
 ##########################################################
 def main():
@@ -161,7 +179,7 @@ def main():
                     nresources = nvertices - nnuclei
                     g = generate_graph(model, nvertices, avgdegree, rewiringprob)
                     g, resoids = add_labels(g, nresources, UNIFORM, RESOURCE)
-                    g, nuclids = add_labels(g, nnuclei, UNIFORM, NUCLEUS)
+                    g, nuclids = add_labels(g, nnuclei, DEGREE, NUCLEUS)
 
                     if not os.path.exists(plotpath):
                         igraph.plot(g, plotpath, **visual)
