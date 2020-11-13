@@ -12,9 +12,9 @@ import sys
 import numpy as np
 import matplotlib; matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-import igraph
+import random, igraph, scipy
+import scipy.optimize
 from myutils import info, create_readme
-import random
 import pandas as pd
 
 #############################################################
@@ -41,11 +41,6 @@ def generate_graph(model, nvertices, avgdegree, rewiringprob,
         m = round(avgdegree/2)
         if m == 0: m = 1
         g = igraph.Graph.Barabasi(nvertices, m)
-    elif model == 'ws':
-        mapside = int(np.sqrt(nvertices))
-        m = round(avgdegree/2)
-        g = igraph.Graph.Lattice([mapside, mapside], nei=1, circular=False)
-        g.rewire_edges(rewiringprob)
     elif model == 'gr':
         radius = get_rgg_params(nvertices, avgdegree)
         g = igraph.Graph.GRG(nvertices, radius)
@@ -57,7 +52,7 @@ def generate_graph(model, nvertices, avgdegree, rewiringprob,
         aux = np.array([ [g.vs['x'][i], g.vs['y'][i]] for i in range(g.vcount()) ])
         # layoutmodel = 'grid'
     else:
-        if model in ['la', 'ws']:
+        if model in ['la']:
             layoutmodel = 'grid'
         else:
             layoutmodel = 'random'
@@ -71,7 +66,7 @@ def generate_graph(model, nvertices, avgdegree, rewiringprob,
 ##########################################################
 def weighed_random_sampling(items, weights, return_idx=False):
     n = len(items)
-    weights += 1 # TODO: remove this
+    # weights += 1 # TODO: remove this
     cumsum = np.cumsum(weights)
     cumsumnorm = cumsum / cumsum[-1]
     x = np.random.rand()
@@ -116,6 +111,24 @@ def add_labels(gorig, m, choice, label):
         g.vs[idx]['type'] = label
     return g, sorted(sample[:m])
 
+
+##########################################################
+def get_rgg_params(nvertices, avgdegree):
+    rggcatalog = {
+        '625,6': 0.056865545,
+        '10000,6': 0.0139,
+        '11132,6': 0.0131495,
+        '22500,6': 0.00925,
+    }
+
+    if '{},{}'.format(nvertices, avgdegree) in rggcatalog.keys():
+        return rggcatalog['{},{}'.format(nvertices, avgdegree)]
+
+    def f(r):
+        g = igraph.Graph.GRG(nvertices, r)
+        return np.mean(g.degree()) - avgdegree
+
+    return scipy.optimize.brentq(f, 0.0001, 10000)
 ##########################################################
 def main():
     info(inspect.stack()[0][3] + '()')
@@ -143,24 +156,19 @@ def main():
         edge_width=1.0
     )
 
-    models = ['er', 'ba'] # er, ba
+    models = ['er', 'ba', 'gr'] # er, ba
     nvertices = 1000
     resoratio = .5
     nresources = int(resoratio * nvertices)
-    nucleiratios = np.arange(0, 1.01, .05)
+    # nucleiratios = np.arange(0, 1.01, .1)
+    nucleiratios = np.arange(0, 1.01, .2)
     # nucleiratios = [0.1]
     rewiringprob = 0.5
-    # avgdegrees = [6, 20, 100]
-    avgdegrees = [6]
-    niter = 2
+    avgdegrees = [6, 20, 100]
+    # avgdegrees = [6]
+    niter = 3
 
-    items = ['a', 'b', 'c']
     weights = [10, 100, 40]
-
-    # z = []
-    # for i in range(1000):
-        # z.append(weighed_random_sampling(items, weights))
-    # a, b = np.unique(z, return_counts=True)
 
     res = []
     for avgdegree in avgdegrees:
@@ -178,8 +186,8 @@ def main():
 
                     nresources = nvertices - nnuclei
                     g = generate_graph(model, nvertices, avgdegree, rewiringprob)
-                    g, resoids = add_labels(g, nresources, UNIFORM, RESOURCE)
                     g, nuclids = add_labels(g, nnuclei, DEGREE, NUCLEUS)
+                    g, resoids = add_labels(g, nresources, UNIFORM, RESOURCE)
 
                     if not os.path.exists(plotpath):
                         igraph.plot(g, plotpath, **visual)
