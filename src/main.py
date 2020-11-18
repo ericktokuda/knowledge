@@ -24,6 +24,9 @@ RESOURCE = 2
 #############################################################
 UNIFORM = 0
 DEGREE = 1
+BETWV = 2
+CLUCOEFF = 3
+CLUCOEFF2 = 3
 #############################################################
 def generate_graph(model, nvertices, avgdegree, rewiringprob,
                    latticethoroidal=False, tmpdir='/tmp/'):
@@ -64,13 +67,11 @@ def generate_graph(model, nvertices, avgdegree, rewiringprob,
     return g
 
 ##########################################################
-def weighed_random_sampling(items, weights, return_idx=False):
+def weighted_random_sampling(items, weights, return_idx=False):
     n = len(items)
-    # weights += 1 # TODO: remove this
     cumsum = np.cumsum(weights)
     cumsumnorm = cumsum / cumsum[-1]
     x = np.random.rand()
-    #binary search to find the item
 
     for i in range(n):
         if x < cumsumnorm[i]:
@@ -83,33 +84,78 @@ def weighed_random_sampling(items, weights, return_idx=False):
     else: return items[-1]
 
 ##########################################################
-def add_labels(gorig, m, choice, label):
+def weighted_random_sampling_n(items, weights, n):
+    item = items.copy(); weights = weights.copy()
+    sample = np.zeros(n, dtype=int)
+    inds = list(range(len(items)))
+
+    for i in range(n):
+        sampleidx = weighted_random_sampling(items, weights, return_idx=True)
+        sample[i] = items[sampleidx]
+        items = np.delete(items, sampleidx)
+        weights = np.delete(weights, sampleidx)
+
+    return sample
+
+##########################################################
+def calculate_modified_clucoeff(g):
+    """Clustering coefficient as proposed by Luc"""
+    info(inspect.stack()[0][3] + '()')
+    adj = np.array(g.get_adjacency().data)
+
+    mult = np.matmul(adj, adj)
+
+    for i in range(mult.shape[0]): mult[i, i] = 0 # Ignoring reaching self
+
+    clucoeffs = - np.ones(g.vcount(), dtype=float)
+    for i in range(g.vcount()):
+        neighs1 = np.where(adj[i, :] > 0)[0].tolist()
+        neighs2 = np.where(mult[i, :] > 0)[0].tolist()
+        neighs = list(set([i] + neighs1 + neighs2))
+        n = len(neighs)
+        induced = adj[neighs, :][:, neighs]
+        m = np.sum(induced) / 2
+        clucoeffs[i] = m / ( n * (n-1) / 2)
+
+    return clucoeffs
+
+##########################################################
+def add_labels(gorig, n, choice, label):
     """Add @nresources to the @g.
     We randomly sample the vertices and change their labels"""
-    # info(inspect.stack()[0][3] + '()')
+    info(inspect.stack()[0][3] + '()')
     g = gorig.copy()
     types = np.array(g.vs['type'])
-    degrs = np.array(g.degree())
+
     nones = np.where(types == NONE)[0]
-    degrs = degrs[nones]
 
     if choice == UNIFORM:
-        sample = nones.copy()
-        random.shuffle(sample)
+        # sample = nones.copy()
+        # random.shuffle(sample)
+        weights = np.ones(len(nones), dtype=float)
     elif choice == DEGREE:
-        sample = np.zeros(m, dtype=int)
-        inds = list(range(len(nones)))
-        # nones = list(nones)
-        for i in range(m):
-            sampleidx = weighed_random_sampling(nones, degrs, return_idx=True)
-            sample[i] = nones[sampleidx]
-            nones = np.delete(nones, sampleidx)
-            degrs = np.delete(degrs, sampleidx)
+        degrs = np.array(g.degree())
+        weights = degrs[nones]
+        # sample = weighted_random_sampling_n(nones, degrs, n)
+    elif choice == BETWV:
+        betwvs = np.array(g.betweenness())
+        weights = betwvs[nones] # TODO: FILTER BY BETWV
+    elif choice == CLUCOEFF:
+        clucoeffs = np.array(g.transitivity_local_undirected())
+        clucoeffs = clucoeffs[nones] # TODO: FILTER BY CLUCOEFF
+        weights = clucoeffs[~np.isnan(clucoeffs)]
+    elif choice == CLUCOEFF2:
+        clucoeffs = calculate_modified_clucoeff(g)
+        weights = clucoeffs[~np.isnan(clucoeffs)]
 
-    for i in range(m):
+    else: info('Invalid choice!')
+
+    sample = weighted_random_sampling_n(nones, weights, n)
+
+    for i in range(n):
         idx = sample[i]
         g.vs[idx]['type'] = label
-    return g, sorted(sample[:m])
+    return g, sorted(sample[:n])
 
 
 ##########################################################
@@ -119,6 +165,9 @@ def get_rgg_params(nvertices, avgdegree):
         '10000,6': 0.0139,
         '11132,6': 0.0131495,
         '22500,6': 0.00925,
+         '1000,6': 0.044389839846333226,
+        '1000,20': 0.08276843878986143,
+       '1000,100': 0.19425867981373568
     }
 
     if '{},{}'.format(nvertices, avgdegree) in rggcatalog.keys():
@@ -161,11 +210,11 @@ def main():
     resoratio = .5
     nresources = int(resoratio * nvertices)
     # nucleiratios = np.arange(0, 1.01, .1)
-    nucleiratios = np.arange(0, 1.01, .2)
-    # nucleiratios = [0.1]
+    # nucleiratios = np.arange(0, 1.01, .2)
+    nucleiratios = [0.2]
     rewiringprob = 0.5
-    avgdegrees = [6, 20, 100]
-    # avgdegrees = [6]
+    # avgdegrees = [6, 20, 100]
+    avgdegrees = [6]
     niter = 3
 
     weights = [10, 100, 40]
@@ -186,7 +235,7 @@ def main():
 
                     nresources = nvertices - nnuclei
                     g = generate_graph(model, nvertices, avgdegree, rewiringprob)
-                    g, nuclids = add_labels(g, nnuclei, DEGREE, NUCLEUS)
+                    g, nuclids = add_labels(g, nnuclei, CLUCOEFF, NUCLEUS)
                     g, resoids = add_labels(g, nresources, UNIFORM, RESOURCE)
 
                     if not os.path.exists(plotpath):
@@ -226,13 +275,13 @@ def main():
                                 yerr=dfstd.loc[cols][meas].values, label=model)
                 axs[i, j].set_xlabel('c')
                 axs[i, j].set_ylabel(meas)
+                axs[i, j].set_ylim(0, 1)
                 axs[i, j].legend()
 
     plt.tight_layout(pad=4, h_pad=1)
-    dh = 1/ len(avgdegrees)
+    dh = 1 / len(avgdegrees) - .05
     for i, k in enumerate(avgdegrees):
-        plt.figtext(.5, 1 - i * dh, '<k>:{}'.format(avgdegree),
-                    ha='center', va='center')
+        plt.figtext(.5, .92 - i * dh, '<k>:{}'.format(k), ha='center', va='center')
 
     outpath = pjoin(args.outdir, 'plot.png')
     plt.savefig(outpath)
