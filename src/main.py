@@ -14,19 +14,23 @@ import matplotlib; matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import random, igraph, scipy
 import scipy.optimize
-from myutils import info, create_readme
+from myutils import info, create_readme, append_to_file
 import pandas as pd
+from multiprocessing import Pool
+from itertools import product
 
 #############################################################
 NONE = 0
 NUCLEUS = 1
 RESOURCE = 2
+
 #############################################################
 UNIFORM = 0
 DEGREE = 1
 BETWV = 2
 CLUCOEFF = 3
-CLUCOEFF2 = 3
+CLUCOEFF2 = 4
+
 #############################################################
 def generate_graph(model, nvertices, avgdegree, rewiringprob,
                    latticethoroidal=False, tmpdir='/tmp/'):
@@ -41,7 +45,7 @@ def generate_graph(model, nvertices, avgdegree, rewiringprob,
         if erdosprob > 1: erdosprob = 1
         g = igraph.Graph.Erdos_Renyi(nvertices, erdosprob)
     elif model == 'ba':
-        m = round(avgdegree/2)
+        m = int(round(avgdegree/2))
         if m == 0: m = 1
         g = igraph.Graph.Barabasi(nvertices, m)
     elif model == 'gr':
@@ -100,14 +104,14 @@ def weighted_random_sampling_n(items, weights, n):
 ##########################################################
 def calculate_modified_clucoeff(g):
     """Clustering coefficient as proposed by Luc"""
-    info(inspect.stack()[0][3] + '()')
+    # info(inspect.stack()[0][3] + '()')
     adj = np.array(g.get_adjacency().data)
 
     mult = np.matmul(adj, adj)
 
     for i in range(mult.shape[0]): mult[i, i] = 0 # Ignoring reaching self
 
-    clucoeffs = - np.ones(g.vcount(), dtype=float)
+    clucoeffs = np.zeros(g.vcount(), dtype=float)
     for i in range(g.vcount()):
         neighs1 = np.where(adj[i, :] > 0)[0].tolist()
         neighs2 = np.where(mult[i, :] > 0)[0].tolist()
@@ -115,6 +119,7 @@ def calculate_modified_clucoeff(g):
         n = len(neighs)
         induced = adj[neighs, :][:, neighs]
         m = np.sum(induced) / 2
+        if n == 1: continue
         clucoeffs[i] = m / ( n * (n-1) / 2)
 
     return clucoeffs
@@ -123,40 +128,39 @@ def calculate_modified_clucoeff(g):
 def add_labels(gorig, n, choice, label):
     """Add @nresources to the @g.
     We randomly sample the vertices and change their labels"""
-    info(inspect.stack()[0][3] + '()')
+    # info(inspect.stack()[0][3] + '()')
     g = gorig.copy()
     types = np.array(g.vs['type'])
 
-    nones = np.where(types == NONE)[0]
+    noneinds = np.where(types == NONE)[0]
+    validinds = noneinds
 
     if choice == UNIFORM:
-        # sample = nones.copy()
-        # random.shuffle(sample)
-        weights = np.ones(len(nones), dtype=float)
+        weights = np.ones(len(noneinds), dtype=float)
     elif choice == DEGREE:
         degrs = np.array(g.degree())
-        weights = degrs[nones]
-        # sample = weighted_random_sampling_n(nones, degrs, n)
+        weights = degrs[noneinds]
     elif choice == BETWV:
         betwvs = np.array(g.betweenness())
-        weights = betwvs[nones] # TODO: FILTER BY BETWV
+        weights = betwvs[noneinds]
     elif choice == CLUCOEFF:
         clucoeffs = np.array(g.transitivity_local_undirected())
-        clucoeffs = clucoeffs[nones] # TODO: FILTER BY CLUCOEFF
-        weights = clucoeffs[~np.isnan(clucoeffs)]
+        valid = np.argwhere(~np.isnan(clucoeffs)).flatten()
+        validinds = list(set(valid).intersection(set(noneinds)))
+        weights = clucoeffs[validinds]
     elif choice == CLUCOEFF2:
         clucoeffs = calculate_modified_clucoeff(g)
-        weights = clucoeffs[~np.isnan(clucoeffs)]
-
+        valid = np.argwhere(~np.isnan(clucoeffs)).flatten()
+        validinds = list(set(valid).intersection(set(noneinds)))
+        weights = clucoeffs[validinds]
     else: info('Invalid choice!')
 
-    sample = weighted_random_sampling_n(nones, weights, n)
+    sample = weighted_random_sampling_n(validinds, weights, n)
 
     for i in range(n):
         idx = sample[i]
         g.vs[idx]['type'] = label
     return g, sorted(sample[:n])
-
 
 ##########################################################
 def get_rgg_params(nvertices, avgdegree):
@@ -178,12 +182,50 @@ def get_rgg_params(nvertices, avgdegree):
         return np.mean(g.degree()) - avgdegree
 
     return scipy.optimize.brentq(f, 0.0001, 10000)
+
+##########################################################
+def run_experiment(params):
+    """Single run, given a model. nvertices, avgdegree, nucleiratio, and niter"""
+    model = params['model']
+    nvertices = params['nvertices']
+    avgdegree = params['avgdegree']
+    nucleipref = params['nucleipref']
+    c = params['c']
+    iter = params['iter']
+
+    rewiringprob = .5
+
+    info('{},{},{},{:.02f},{}'.format(model, nvertices, avgdegree, c, iter))
+    if c == 0 or c == 1:
+        return ([model, nvertices, avgdegree, nucleipref, c, iter, 0, 1.0 - c])
+    nnuclei = int(c * nvertices)
+    neighs = []
+
+    nresources = nvertices - nnuclei
+    g = generate_graph(model, nvertices, avgdegree, rewiringprob)
+    g, nuclids = add_labels(g, nnuclei, nucleipref, NUCLEUS)
+    g, resoids = add_labels(g, nresources, UNIFORM, RESOURCE)
+
+    for nucl in nuclids:
+        neighids = np.array(g.neighbors(nucl))
+        neightypes = np.array(g.vs[neighids.tolist()]['type'])
+        neighresoids = np.where(neightypes == RESOURCE)[0]
+        neighs.extend(neighids[neighresoids])
+
+    lenunique = len(set(neighs))
+    lenrepeated = len(neighs)
+
+    r = lenunique / nvertices
+    s = lenunique / lenrepeated if lenunique > 0 else 0
+    return [model, nvertices, avgdegree, nucleipref, c, iter, r, s]
+
 ##########################################################
 def main():
     info(inspect.stack()[0][3] + '()')
     t0 = time.time()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--seed', default=0, type=int, help='Random seed')
+    parser.add_argument('--nprocs', default=1, type=int, help='Number of parallel processes')
     parser.add_argument('--outdir', default='/tmp/out/', help='Output directory')
     args = parser.parse_args()
 
@@ -193,100 +235,48 @@ def main():
     np.random.seed(args.seed)
     random.seed(args.seed)
 
-    mapside = 500
-    plotzoom = 1
+    models = ['er', 'ba', 'gr'] # ['er', 'ba', 'gr']
+    nvertices = [100, 500, 1000] # [100, 500, 1000]
+    avgdegrees = np.arange(4, 21) # np.arange(4, 21)
+    nucleiprefs = [UNIFORM, DEGREE] # [UNIFORM, DEGREE]
+    nucleiratios = np.arange(0, 1.01, .05) # np.arange(0, 1.01, .05)
+    niter = 100
 
-    visual = dict(
-        bbox = (mapside*10*plotzoom, mapside*10*plotzoom),
-        margin = mapside*plotzoom,
-        vertex_size = 5*plotzoom,
-        vertex_shape = 'circle',
-        vertex_frame_width = 0.1*plotzoom,
-        edge_width=1.0
-    )
+    append_to_file(readmepath, 'models:{}'.format(models))
+    append_to_file(readmepath, 'nvertices:{}'.format(nvertices))
+    append_to_file(readmepath, 'avgdegrees:{}'.format(avgdegrees))
+    append_to_file(readmepath, 'nucleiprefs:{}'.format(nucleiprefs))
+    append_to_file(readmepath, 'nucleiratios:{}'.format(nucleiratios))
+    append_to_file(readmepath, 'niter:{}'.format(niter))
 
-    models = ['er', 'ba', 'gr'] # er, ba
-    nvertices = 1000
-    resoratio = .5
-    nresources = int(resoratio * nvertices)
-    # nucleiratios = np.arange(0, 1.01, .1)
-    # nucleiratios = np.arange(0, 1.01, .2)
-    nucleiratios = [0.2]
-    rewiringprob = 0.5
-    # avgdegrees = [6, 20, 100]
-    avgdegrees = [6]
-    niter = 3
+    aux = list(product(models, nvertices, avgdegrees, nucleiprefs, nucleiratios,
+                       list(range(niter)))) # Fill here
+    params = []
+    for i, row in enumerate(aux):
+        params.append(dict(model = row[0],
+                           nvertices = row[1],
+                           avgdegree = row[2],
+                           nucleipref = row[3],
+                           c = row[4],
+                           iter = row[5],
+                           ))
 
-    weights = [10, 100, 40]
-
-    res = []
-    for avgdegree in avgdegrees:
-        for model in models:
-            plotpath = pjoin(args.outdir, '{}_{}.pdf'.format(model, avgdegree))
-            for c in nucleiratios:
-                info('{},{},{:.02f}'.format(avgdegree, model, c))
-                nnuclei = int(c * nvertices)
-                for i in range(niter):
-                    if c == 0 or c == 1:
-                        res.append([model, avgdegree, c, i, 0, 1.0 - c])
-                        continue
-
-                    neighs = []
-
-                    nresources = nvertices - nnuclei
-                    g = generate_graph(model, nvertices, avgdegree, rewiringprob)
-                    g, nuclids = add_labels(g, nnuclei, CLUCOEFF, NUCLEUS)
-                    g, resoids = add_labels(g, nresources, UNIFORM, RESOURCE)
-
-                    if not os.path.exists(plotpath):
-                        igraph.plot(g, plotpath, **visual)
-
-                    for nucl in nuclids:
-                        neighids = np.array(g.neighbors(nucl))
-                        neightypes = np.array(g.vs[neighids.tolist()]['type'])
-                        neighresoids = np.where(neightypes == RESOURCE)[0]
-                        neighs.extend(neighids[neighresoids])
-
-                    lenunique = len(set(neighs))
-                    lenrepeated = len(neighs)
-
-                    r = lenunique / nvertices
-                    s = lenunique / lenrepeated if lenunique > 0 else 0
-                    res.append([model, avgdegree, c, i, r, s])
+    if args.nprocs == 1:
+        info('Running serially (nprocs:{})'.format(args.nprocs))
+        res = [run_experiment(p) for p in params]
+    else:
+        info('Running in parallel (nprocs:{})'.format(args.nprocs))
+        pool = Pool(args.nprocs)
+        res = pool.map(run_experiment, params)
 
     df = pd.DataFrame()
-    cols = ['model', 'k', 'c', 'i', 'r', 's']
+    cols = ['model', 'nvertices', 'k', 'nucleipref', 'c', 'i', 'r', 's']
+
     for i, col in enumerate(cols):
         df[col] = [x[i] for x in res]
 
-    dfmean = df.groupby(['model', 'k', 'c']).mean()
-    dfstd = df.groupby(['model', 'k', 'c']).std()
-    cols = list(dfmean.index)
-
-    figscale = 4
-    fig, axs = plt.subplots(len(avgdegrees), 2, squeeze=False,
-                figsize=(2*figscale, len(avgdegrees)*figscale*.6))
-
-    for i, k in enumerate(avgdegrees):
-        for j, meas in enumerate(['r', 's']):
-            for model in models:
-                cols = [(model, k, r) for r in nucleiratios]
-                axs[i, j].errorbar(nucleiratios, dfmean.loc[cols][meas].values,
-                                yerr=dfstd.loc[cols][meas].values, label=model)
-                axs[i, j].set_xlabel('c')
-                axs[i, j].set_ylabel(meas)
-                axs[i, j].set_ylim(0, 1)
-                axs[i, j].legend()
-
-    plt.tight_layout(pad=4, h_pad=1)
-    dh = 1 / len(avgdegrees) - .05
-    for i, k in enumerate(avgdegrees):
-        plt.figtext(.5, .92 - i * dh, '<k>:{}'.format(k), ha='center', va='center')
-
-    outpath = pjoin(args.outdir, 'plot.png')
-    plt.savefig(outpath)
-    info('For Aiur!')
-
+    respath = pjoin(args.outdir, 'results.csv')
+    df.to_csv(respath, index=False)
     info('Elapsed time:{}'.format(time.time()-t0))
     info('Output generated in {}'.format(args.outdir))
 
