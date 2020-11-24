@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 import matplotlib; matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+from scipy.optimize import curve_fit
 from myutils import info, create_readme
 import src.main
 
@@ -63,13 +64,18 @@ def main():
     cs = list(np.arange(0, 1.0, 0.05))
     niters = list(np.arange(0, 100,1))
 
+    def poly2(x, a, b, c): return a*x*x + b*x + c
+    def poly3(x, a, b, c, d): return a*x*x*x + b*x*x + c*x + d
+    func = poly3
+
     df = pd.read_csv(args.res)
 
+    data = []
     for nucleipref in nucleiprefs:
         for model in models:
             for n in nvertices:
                 for k in ks:
-                    data = []
+                    dataiters = []
                     for i in niters:
                         aux = df.loc[(df.nucleipref == nucleipref) & \
                                       (df.model == model) & \
@@ -80,35 +86,35 @@ def main():
                         cmax = aux.c.iloc[idxmax]
                         xs = aux.c.to_numpy()[:idxmax + 1]
                         ys = aux.r.to_numpy()[:idxmax + 1]
-                        from scipy.optimize import curve_fit
 
-                        def func2(x, a, b, c):
-                            return a*x*x + b*x + c
+                        if len(xs) < 4: continue # Insufficient sample for curve_fit
 
-                        def func3(x, a, b, c, d):
-                            return a*x*x*x + b*x*x + c*x + d*x
-
-                        func = func3
-                        params, _ = curve_fit(func, xs, ys)
+                        p0 = [6, -7, 3, 0]
+                        params, _ = curve_fit(func, xs, ys, p0=p0)
 
                         # Plot
                         xs2 = np.linspace(np.min(xs), np.max(xs), 100)
                         ys2 = func(xs2, *params)
                         plt.scatter(xs, ys, c='blue')
+                        plt.xlabel('c')
+                        plt.ylabel('r')
                         plt.plot(xs2, ys2, c='red')
-                        plt.savefig('/tmp/out.png')
+                        plt.ylim(0, 1)
+                        plt.xlim(0, 1)
+                        plt.savefig('/tmp/{:03d}.png'.format(i))
                         plt.close()
 
-                        data.append([cmax, *params])
-                    # get mean and std
-                    means = np.array(data).mean(axis=0)
-                    stds = np.array(data).std(axis=0)
-                    breakpoint()
+                        dataiters.append([cmax, *params])
+
+                    means = np.array(dataiters).mean(axis=0)
+                    stds = np.array(dataiters).std(axis=0)
+
+                    data.append([nucleipref,model, n, k, *means, *stds])
+
+    dffinal = pd.DataFrame(data)
+    dffinal.to_csv(pjoin(args.outdir, 'out.csv'))
 
     # xx, yy = np.mgrid[nvertices, 0:1:0.05]
-
-    info('For Aiur!')
-
     info('Elapsed time:{}'.format(time.time()-t0))
     info('Output generated in {}'.format(args.outdir))
 
