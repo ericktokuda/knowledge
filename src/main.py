@@ -199,9 +199,12 @@ def run_experiment(params):
                                  nucleistep, iter))
 
     nucleiratios = np.arange(nucleistep, .5, nucleistep) # np.arange(0, 1.01, .05)
+
     ret = [[model, nvertices, avgdegree, nucleipref, 0.0, iter, 0, 1.0]]
 
-    for c in nucleiratios:
+    rmax = 0
+    idxmax = 0
+    for i, c in enumerate(nucleiratios):
         nnuclei = int(c * nvertices)
         neighs = []
 
@@ -223,7 +226,11 @@ def run_experiment(params):
         s = lenunique / lenrepeated if lenunique > 0 else 0
         ret.append([model, nvertices, avgdegree, nucleipref, c, iter, r, s])
 
-    return ret
+        if r > rmax:
+            rmax = r
+            idxmax = i + 1
+
+    return ret[:idxmax+1]
 
 ##########################################################
 def main():
