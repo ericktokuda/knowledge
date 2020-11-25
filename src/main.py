@@ -198,11 +198,8 @@ def run_experiment(params):
     info('{},{},{},{},{:.02f},{}'.format(model, nvertices, avgdegree, nucleipref,
                                  nucleistep, iter))
 
-    nucleiratios = np.arange(nucleistep, 1.0, nucleistep) # np.arange(0, 1.01, .05)
+    nucleiratios = np.arange(nucleistep, .5, nucleistep) # np.arange(0, 1.01, .05)
     ret = [[model, nvertices, avgdegree, nucleipref, 0.0, iter, 0, 1.0]]
-
-    rprev1 = 0
-    rprev2 = 0
 
     for c in nucleiratios:
         nnuclei = int(c * nvertices)
@@ -225,14 +222,7 @@ def run_experiment(params):
         r = lenunique / nvertices
         s = lenunique / lenrepeated if lenunique > 0 else 0
         ret.append([model, nvertices, avgdegree, nucleipref, c, iter, r, s])
-        if r < rprev2 and rprev1 < rprev2:
-            break
-        else:
-            rprev2 = rprev1
-            rprev1 = r
 
-    if len(ret) > 2: return ret[:-2]
-    else: return ret[:-1]
     return ret
 
 ##########################################################
@@ -256,7 +246,7 @@ def main():
     avgdegrees = np.arange(4, 21) # np.arange(4, 21)
     nucleiprefs = [UNIFORM, DEGREE] # [UNIFORM, DEGREE]
     nucleistep = .01
-    niter = 3
+    niter = 100
 
     append_to_file(readmepath, 'models:{}'.format(models))
     append_to_file(readmepath, 'nvertices:{}'.format(nvertices))
