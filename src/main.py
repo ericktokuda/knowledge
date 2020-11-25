@@ -190,34 +190,50 @@ def run_experiment(params):
     nvertices = params['nvertices']
     avgdegree = params['avgdegree']
     nucleipref = params['nucleipref']
-    c = params['c']
+    nucleistep = params['nucleistep']
     iter = params['iter']
 
     rewiringprob = .5
 
-    info('{},{},{},{:.02f},{}'.format(model, nvertices, avgdegree, c, iter))
-    if c == 0 or c == 1:
-        return ([model, nvertices, avgdegree, nucleipref, c, iter, 0, 1.0 - c])
-    nnuclei = int(c * nvertices)
-    neighs = []
+    info('{},{},{},{},{:.02f},{}'.format(model, nvertices, avgdegree, nucleipref,
+                                 nucleistep, iter))
 
-    nresources = nvertices - nnuclei
-    g = generate_graph(model, nvertices, avgdegree, rewiringprob)
-    g, nuclids = add_labels(g, nnuclei, nucleipref, NUCLEUS)
-    g, resoids = add_labels(g, nresources, UNIFORM, RESOURCE)
+    nucleiratios = np.arange(nucleistep, 1.0, nucleistep) # np.arange(0, 1.01, .05)
+    ret = [[model, nvertices, avgdegree, nucleipref, 0.0, iter, 0, 1.0]]
 
-    for nucl in nuclids:
-        neighids = np.array(g.neighbors(nucl))
-        neightypes = np.array(g.vs[neighids.tolist()]['type'])
-        neighresoids = np.where(neightypes == RESOURCE)[0]
-        neighs.extend(neighids[neighresoids])
+    rprev1 = 0
+    rprev2 = 0
 
-    lenunique = len(set(neighs))
-    lenrepeated = len(neighs)
+    for c in nucleiratios:
+        nnuclei = int(c * nvertices)
+        neighs = []
 
-    r = lenunique / nvertices
-    s = lenunique / lenrepeated if lenunique > 0 else 0
-    return [model, nvertices, avgdegree, nucleipref, c, iter, r, s]
+        nresources = nvertices - nnuclei
+        g = generate_graph(model, nvertices, avgdegree, rewiringprob)
+        g, nuclids = add_labels(g, nnuclei, nucleipref, NUCLEUS)
+        g, resoids = add_labels(g, nresources, UNIFORM, RESOURCE)
+
+        for nucl in nuclids:
+            neighids = np.array(g.neighbors(nucl))
+            neightypes = np.array(g.vs[neighids.tolist()]['type'])
+            neighresoids = np.where(neightypes == RESOURCE)[0]
+            neighs.extend(neighids[neighresoids])
+
+        lenunique = len(set(neighs))
+        lenrepeated = len(neighs)
+
+        r = lenunique / nvertices
+        s = lenunique / lenrepeated if lenunique > 0 else 0
+        ret.append([model, nvertices, avgdegree, nucleipref, c, iter, r, s])
+        if r < rprev2 and rprev1 < rprev2:
+            break
+        else:
+            rprev2 = rprev1
+            rprev1 = r
+
+    if len(ret) > 2: return ret[:-2]
+    else: return ret[:-1]
+    return ret
 
 ##########################################################
 def main():
@@ -235,21 +251,21 @@ def main():
     np.random.seed(args.seed)
     random.seed(args.seed)
 
-    models = ['er', 'ba', 'gr'] # ['er', 'ba', 'gr']
+    models = ['ba', 'er', 'gr'] # ['er', 'ba', 'gr']
     nvertices = [100, 500, 1000] # [100, 500, 1000]
     avgdegrees = np.arange(4, 21) # np.arange(4, 21)
     nucleiprefs = [UNIFORM, DEGREE] # [UNIFORM, DEGREE]
-    nucleiratios = np.arange(0, 1.01, .05) # np.arange(0, 1.01, .05)
-    niter = 100
+    nucleistep = .01
+    niter = 3
 
     append_to_file(readmepath, 'models:{}'.format(models))
     append_to_file(readmepath, 'nvertices:{}'.format(nvertices))
     append_to_file(readmepath, 'avgdegrees:{}'.format(avgdegrees))
     append_to_file(readmepath, 'nucleiprefs:{}'.format(nucleiprefs))
-    append_to_file(readmepath, 'nucleiratios:{}'.format(nucleiratios))
+    append_to_file(readmepath, 'nucleistep:{}'.format(nucleistep))
     append_to_file(readmepath, 'niter:{}'.format(niter))
 
-    aux = list(product(models, nvertices, avgdegrees, nucleiprefs, nucleiratios,
+    aux = list(product(models, nvertices, avgdegrees, nucleiprefs, [nucleistep],
                        list(range(niter)))) # Fill here
     params = []
     for i, row in enumerate(aux):
@@ -257,20 +273,23 @@ def main():
                            nvertices = row[1],
                            avgdegree = row[2],
                            nucleipref = row[3],
-                           c = row[4],
+                           nucleistep = row[4],
                            iter = row[5],
                            ))
 
     if args.nprocs == 1:
         info('Running serially (nprocs:{})'.format(args.nprocs))
-        res = [run_experiment(p) for p in params]
+        ret = [run_experiment(p) for p in params]
     else:
         info('Running in parallel (nprocs:{})'.format(args.nprocs))
         pool = Pool(args.nprocs)
-        res = pool.map(run_experiment, params)
+        ret = pool.map(run_experiment, params)
 
     df = pd.DataFrame()
     cols = ['model', 'nvertices', 'k', 'nucleipref', 'c', 'i', 'r', 's']
+
+    res = []
+    for blob in ret: res.extend(blob)
 
     for i, col in enumerate(cols):
         df[col] = [x[i] for x in res]
