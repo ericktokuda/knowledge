@@ -46,10 +46,12 @@ def plot_surface(f, x, y, xx, yy, outdir):
     plt.savefig(pjoin(outdir, 'surfaceplot.pdf'))
 
 ##########################################################
-def aggregate_results(respath, aggregatedpath, option='plot'):
+def aggregate_results(df, outdir):
     """Parse results from simulation"""
 
-    if os.path.exists(aggregatedpath):
+    aggregpath = pjoin(outdir, 'aggregated.csv')
+
+    if os.path.exists(aggregpath):
         info('Loading existing aggregated results:{}'.format(aggregatedpath))
         return pd.read_csv(aggregatedpath)
 
@@ -62,7 +64,7 @@ def aggregate_results(respath, aggregatedpath, option='plot'):
     def poly2(x, a, b, c): return a*x*x + b*x + c
     def poly3(x, a, b, c, d): return a*x*x*x + b*x*x + c*x + d
     def myexp(x, a, b, c, d): return a*np.exp(b*x) + c
-    func = myexp
+    func = poly3
 
     data = []
     for nucleipref in nucleiprefs:
@@ -87,18 +89,8 @@ def aggregate_results(respath, aggregatedpath, option='plot'):
                         p0 = [6, -7, 3, 0] # Poly3
                         params, _ = curve_fit(func, xs, ys, p0=p0)
 
-                        # Plot
-                        xs2 = np.linspace(np.min(xs), np.max(xs), 100)
-                        ys2 = func(xs2, *params)
-                        plt.scatter(xs, ys, c='blue')
-                        plt.xlabel('c')
-                        plt.ylabel('r')
-                        plt.plot(xs2, ys2, c='red')
-                        plt.ylim(0, 1)
-                        plt.xlim(0, 1)
-                        outpath = pjoin(outdir, '{:03d}.png'.format(i))
-                        plt.savefig(outpath)
-                        plt.close()
+                        # outpath = pjoin(outdir, '{:03d}.png'.format(i))
+                        # plot_cxr(xs, ys, outpath, func=func, params=params)
 
                         dataiters.append([cmax, *params])
 
@@ -111,8 +103,53 @@ def aggregate_results(respath, aggregatedpath, option='plot'):
     cols = 'nucleipref,model,nvertices,avgdegree,cmaxmean,' \
         'amean,bmean,cmean,dmean,cmaxstd,astd,bstd,cstd,dstd'.split(',')
     dffinal = pd.DataFrame(data, columns=cols)
-    dffinal.to_csv(aggregatedpath, index=False)
+    dffinal.to_csv(aggregpath, index=False)
     return dffinal
+
+##########################################################
+def plot_cxr(cs, rs, outpath, func=None, params=None):
+    """Plot C x R"""
+    # info(inspect.stack()[0][3] + '()')
+    W = 640; H = 480
+    fig, ax = plt.subplots(figsize=(W*.01, H*.01), dpi=100)
+    ax.scatter(cs, rs)
+    if func != None:
+        xs = np.linspace(np.min(cs), np.max(cs), 100)
+        ys = func(xs, *params)
+        ax.plot(xs, ys, c='red')
+    ax.set_xlabel('c')
+    ax.set_ylabel('r')
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    plt.savefig(outpath)
+    plt.close()
+
+##########################################################
+def plot_origpoints(df, outdir):
+    """Plot original points """
+    info(inspect.stack()[0][3] + '()')
+    models = np.unique(df.model)
+    nvertices = np.unique(df.nvertices)
+    nucleiprefs = np.unique(df.nucleipref)
+    ks = np.unique(df.k)
+    niters = np.unique(df.i)
+
+    for nucleipref in nucleiprefs:
+        for model in models:
+            for n in nvertices:
+                for k in ks:
+                    for i in niters:
+
+                        aux = df.loc[(df.nucleipref == nucleipref) & \
+                                      (df.model == model) & \
+                                      (df.nvertices == n) & \
+                                      (df.k == k) &(df.i == i)]
+                        rs = aux.r.to_numpy()
+                        cs = aux.c.to_numpy()
+                        f = '{}_{}_{}_{}_{:02d}.png'.format(
+                            nucleipref, model, n, k, i)
+                        outpath = pjoin(outdir, f)
+                        plot_cxr(cs, rs, outpath)
 
 ##########################################################
 def main():
@@ -127,16 +164,9 @@ def main():
     readmepath = create_readme(sys.argv, args.outdir)
 
     df = pd.read_csv(args.res)
-    dfaggreg = aggregate_results(df)
-
-    dfpath = pjoin(args.outdir, 'aggregated.csv')
-
-    if not os.path.exists(dfpath):
-        df = parse_results(args.res, dfpath)
-    else:
-        df = pd.read_csv(dfpath)
-
-    plot_all(df, args.outdir)
+    # plot_origpoints(df, args.outdir)
+    dfaggreg = aggregate_results(df, args.outdir)
+    breakpoint()
 
     # xx, yy = np.mgrid[nvertices, 0:1:0.05]
     info('Elapsed time:{}'.format(time.time()-t0))
