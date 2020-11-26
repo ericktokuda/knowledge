@@ -199,7 +199,7 @@ def run_experiment(params):
 ##########################################################
 def run_subpexperiment(gorig, nucleipref, nucleiratios, i):
     """Run one experiment"""
-    info(inspect.stack()[0][3] + '()')
+    # info(inspect.stack()[0][3] + '()')
 
     nvertices = gorig.vcount()
     ret = [[i, 0.0, 0, 1.0]] # c,r,s
@@ -253,11 +253,11 @@ def main():
     random.seed(args.seed)
 
     models = ['ba', 'er', 'gr'] # ['er', 'ba', 'gr']
-    nvertices = [100] # [100, 500, 1000]
+    nvertices = [100,500,1000] # [100, 500, 1000]
     avgdegrees = np.arange(4, 21) # np.arange(4, 21)
     nucleiprefs = ['un', 'de'] # [UNIFORM, DEGREE]
-    nucleistep = .1
-    niter = 3
+    nucleistep = .01
+    niter = 100
 
     append_to_file(readmepath, 'models:{}'.format(models))
     append_to_file(readmepath, 'nvertices:{}'.format(nvertices))
