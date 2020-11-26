@@ -107,7 +107,8 @@ def parse_results(respath, aggregatedpath):
     cols = 'nucleipref,model,nvertices,avgdegree,cmaxmean,' \
         'amean,bmean,cmean,dmean,cmaxstd,astd,bstd,cstd,dstd'.split(',')
     dffinal = pd.DataFrame(data, columns=cols)
-    dffinal.to_csv(aggregatedpath)
+    dffinal.to_csv(aggregatedpath, index=False)
+)
     return dffinal
 
 ##########################################################
@@ -127,8 +128,7 @@ def main():
     if not os.path.exists(dfpath):
         df = parse_results(args.res, dfpath)
     else:
-        df = pd.read_csv(dfpath, index=False)
-
+        df = pd.read_csv(dfpath)
     # xx, yy = np.mgrid[nvertices, 0:1:0.05]
     info('Elapsed time:{}'.format(time.time()-t0))
     info('Output generated in {}'.format(args.outdir))
