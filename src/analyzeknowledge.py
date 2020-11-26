@@ -46,29 +46,21 @@ def plot_surface(f, x, y, xx, yy, outdir):
     plt.savefig(pjoin(outdir, 'surfaceplot.pdf'))
 
 ##########################################################
-def main():
+def parse_results(respath, aggregatedpath):
+    """Parse results from simulation"""
     info(inspect.stack()[0][3] + '()')
-    t0 = time.time()
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--res', required=True, help='Results (csv) path')
-    parser.add_argument('--outdir', default='/tmp/out/', help='Output directory')
-    args = parser.parse_args()
-
-    os.makedirs(args.outdir, exist_ok=True)
-    readmepath = create_readme(sys.argv, args.outdir)
-
     nvertices = [100, 500, 1000]
     models = ['ba', 'er', 'gr']
     nucleiprefs = [src.main.UNIFORM, src.main.DEGREE]
     ks = list(np.arange(4, 21))
-    cs = list(np.arange(0, 1.0, 0.05))
+    cs = list(np.arange(0, 1.0, 0.01))
     niters = list(np.arange(0, 100,1))
 
     def poly2(x, a, b, c): return a*x*x + b*x + c
     def poly3(x, a, b, c, d): return a*x*x*x + b*x*x + c*x + d
     func = poly3
 
-    df = pd.read_csv(args.res)
+    df = pd.read_csv(respath)
 
     data = []
     for nucleipref in nucleiprefs:
@@ -93,16 +85,16 @@ def main():
                         params, _ = curve_fit(func, xs, ys, p0=p0)
 
                         # Plot
-                        xs2 = np.linspace(np.min(xs), np.max(xs), 100)
-                        ys2 = func(xs2, *params)
-                        plt.scatter(xs, ys, c='blue')
-                        plt.xlabel('c')
-                        plt.ylabel('r')
-                        plt.plot(xs2, ys2, c='red')
-                        plt.ylim(0, 1)
-                        plt.xlim(0, 1)
-                        plt.savefig('/tmp/{:03d}.png'.format(i))
-                        plt.close()
+                        # xs2 = np.linspace(np.min(xs), np.max(xs), 100)
+                        # ys2 = func(xs2, *params)
+                        # plt.scatter(xs, ys, c='blue')
+                        # plt.xlabel('c')
+                        # plt.ylabel('r')
+                        # plt.plot(xs2, ys2, c='red')
+                        # plt.ylim(0, 1)
+                        # plt.xlim(0, 1)
+                        # plt.savefig('/tmp/{:03d}.png'.format(i))
+                        # plt.close()
 
                         dataiters.append([cmax, *params])
 
@@ -111,8 +103,31 @@ def main():
 
                     data.append([nucleipref,model, n, k, *means, *stds])
 
-    dffinal = pd.DataFrame(data)
-    dffinal.to_csv(pjoin(args.outdir, 'out.csv'))
+
+    cols = 'nucleipref,model,nvertices,avgdegree,cmaxmean,' \
+        'amean,bmean,cmean,dmean,cmaxstd,astd,bstd,cstd,dstd'.split(',')
+    dffinal = pd.DataFrame(data, columns=cols)
+    dffinal.to_csv(aggregatedpath)
+    return dffinal
+
+##########################################################
+def main():
+    info(inspect.stack()[0][3] + '()')
+    t0 = time.time()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--res', required=True, help='Results (csv) path')
+    parser.add_argument('--outdir', default='/tmp/out/', help='Output directory')
+    args = parser.parse_args()
+
+    os.makedirs(args.outdir, exist_ok=True)
+    readmepath = create_readme(sys.argv, args.outdir)
+
+    dfpath = pjoin(args.outdir, 'aggregated.csv')
+
+    if not os.path.exists(dfpath):
+        df = parse_results(args.res, dfpath)
+    else:
+        df = pd.read_csv(dfpath, index=False)
 
     # xx, yy = np.mgrid[nvertices, 0:1:0.05]
     info('Elapsed time:{}'.format(time.time()-t0))
