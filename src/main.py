@@ -25,13 +25,6 @@ NUCLEUS = 1
 RESOURCE = 2
 
 #############################################################
-UNIFORM = 0
-DEGREE = 1
-BETWV = 2
-CLUCOEFF = 3
-CLUCOEFF2 = 4
-
-#############################################################
 def generate_graph(model, nvertices, avgdegree, rewiringprob,
                    latticethoroidal=False, tmpdir='/tmp/'):
     """Generate graph with given topology """
@@ -135,20 +128,20 @@ def add_labels(gorig, n, choice, label):
     noneinds = np.where(types == NONE)[0]
     validinds = noneinds
 
-    if choice == UNIFORM:
+    if choice == 'un':
         weights = np.ones(len(noneinds), dtype=float)
-    elif choice == DEGREE:
+    elif choice == 'de':
         degrs = np.array(g.degree())
         weights = degrs[noneinds]
-    elif choice == BETWV:
+    elif choice == 'be':
         betwvs = np.array(g.betweenness())
         weights = betwvs[noneinds]
-    elif choice == CLUCOEFF:
+    elif choice == 'cl':
         clucoeffs = np.array(g.transitivity_local_undirected())
         valid = np.argwhere(~np.isnan(clucoeffs)).flatten()
         validinds = list(set(valid).intersection(set(noneinds)))
         weights = clucoeffs[validinds]
-    elif choice == CLUCOEFF2:
+    elif choice == 'cl2':
         clucoeffs = calculate_modified_clucoeff(g)
         valid = np.argwhere(~np.isnan(clucoeffs)).flatten()
         validinds = list(set(valid).intersection(set(noneinds)))
@@ -191,27 +184,38 @@ def run_experiment(params):
     avgdegree = params['avgdegree']
     nucleipref = params['nucleipref']
     nucleistep = params['nucleistep']
-    iter = params['iter']
-
-    rewiringprob = .5
-
-    info('{},{},{},{},{:.02f},{}'.format(model, nvertices, avgdegree, nucleipref,
-                                 nucleistep, iter))
-
+    niter = params['niter']
     nucleiratios = np.arange(nucleistep, .5, nucleistep) # np.arange(0, 1.01, .05)
 
-    ret = [[model, nvertices, avgdegree, nucleipref, 0.0, iter, 0, 1.0]]
+    info('{},{},{},{}'.format(model, nvertices, avgdegree, nucleipref))
+
+    g = generate_graph(model, nvertices, avgdegree, rewiringprob=.5)
+
+    ret = []
+    for i in range(niter):
+        ret.extend(run_subpexperiment(g, nucleipref, nucleiratios, i))
+    return ret
+
+##########################################################
+def run_subpexperiment(gorig, nucleipref, nucleiratios, i):
+    """Run one experiment"""
+    info(inspect.stack()[0][3] + '()')
+
+    nvertices = gorig.vcount()
+    ret = [[i, 0.0, 0, 1.0]] # c,r,s
 
     rmax = 0
     idxmax = 0
+
     for i, c in enumerate(nucleiratios):
         nnuclei = int(c * nvertices)
         neighs = []
 
         nresources = nvertices - nnuclei
-        g = generate_graph(model, nvertices, avgdegree, rewiringprob)
+        g = gorig.copy()
+        # g = generate_graph(model, nvertices, avgdegree, rewiringprob)
         g, nuclids = add_labels(g, nnuclei, nucleipref, NUCLEUS)
-        g, resoids = add_labels(g, nresources, UNIFORM, RESOURCE)
+        g, resoids = add_labels(g, nresources, 'un', RESOURCE)
 
         for nucl in nuclids:
             neighids = np.array(g.neighbors(nucl))
@@ -224,7 +228,7 @@ def run_experiment(params):
 
         r = lenunique / nvertices
         s = lenunique / lenrepeated if lenunique > 0 else 0
-        ret.append([model, nvertices, avgdegree, nucleipref, c, iter, r, s])
+        ret.append([i, c, r, s])
 
         if r > rmax:
             rmax = r
@@ -249,11 +253,11 @@ def main():
     random.seed(args.seed)
 
     models = ['ba', 'er', 'gr'] # ['er', 'ba', 'gr']
-    nvertices = [100, 500, 1000] # [100, 500, 1000]
+    nvertices = [100] # [100, 500, 1000]
     avgdegrees = np.arange(4, 21) # np.arange(4, 21)
-    nucleiprefs = [UNIFORM, DEGREE] # [UNIFORM, DEGREE]
-    nucleistep = .01
-    niter = 100
+    nucleiprefs = ['un', 'de'] # [UNIFORM, DEGREE]
+    nucleistep = .1
+    niter = 3
 
     append_to_file(readmepath, 'models:{}'.format(models))
     append_to_file(readmepath, 'nvertices:{}'.format(nvertices))
@@ -263,7 +267,7 @@ def main():
     append_to_file(readmepath, 'niter:{}'.format(niter))
 
     aux = list(product(models, nvertices, avgdegrees, nucleiprefs, [nucleistep],
-                       list(range(niter)))) # Fill here
+                       [niter])) # Fill here
     params = []
     for i, row in enumerate(aux):
         params.append(dict(model = row[0],
@@ -271,7 +275,7 @@ def main():
                            avgdegree = row[2],
                            nucleipref = row[3],
                            nucleistep = row[4],
-                           iter = row[5],
+                           niter = row[5],
                            ))
 
     if args.nprocs == 1:
@@ -282,11 +286,14 @@ def main():
         pool = Pool(args.nprocs)
         ret = pool.map(run_experiment, params)
 
+    res = []
+    for p, r in zip(params, ret):
+        beg = [p['model'], p['nvertices'], p['avgdegree'], p['nucleipref']]
+        for rr in r:
+            res.append(beg + rr)
+
     df = pd.DataFrame()
     cols = ['model', 'nvertices', 'k', 'nucleipref', 'c', 'i', 'r', 's']
-
-    res = []
-    for blob in ret: res.extend(blob)
 
     for i, col in enumerate(cols):
         df[col] = [x[i] for x in res]
