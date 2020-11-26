@@ -46,21 +46,23 @@ def plot_surface(f, x, y, xx, yy, outdir):
     plt.savefig(pjoin(outdir, 'surfaceplot.pdf'))
 
 ##########################################################
-def parse_results(respath, aggregatedpath):
+def aggregate_results(respath, aggregatedpath, option='plot'):
     """Parse results from simulation"""
-    info(inspect.stack()[0][3] + '()')
-    nvertices = [100, 500, 1000]
-    models = ['ba', 'er', 'gr']
-    nucleiprefs = [src.main.UNIFORM, src.main.DEGREE]
-    ks = list(np.arange(4, 21))
-    cs = list(np.arange(0, 1.0, 0.01))
-    niters = list(np.arange(0, 100,1))
+
+    if os.path.exists(aggregatedpath):
+        info('Loading existing aggregated results:{}'.format(aggregatedpath))
+        return pd.read_csv(aggregatedpath)
+
+    models = np.unique(df.model)
+    nvertices = np.unique(df.nvertices)
+    nucleiprefs = np.unique(df.nucleipref)
+    ks = np.unique(df.k)
+    niters = np.unique(df.i)
 
     def poly2(x, a, b, c): return a*x*x + b*x + c
     def poly3(x, a, b, c, d): return a*x*x*x + b*x*x + c*x + d
-    func = poly3
-
-    df = pd.read_csv(respath)
+    def myexp(x, a, b, c, d): return a*np.exp(b*x) + c
+    func = myexp
 
     data = []
     for nucleipref in nucleiprefs:
@@ -69,6 +71,7 @@ def parse_results(respath, aggregatedpath):
                 for k in ks:
                     dataiters = []
                     for i in niters:
+                        info('i:{}'.format(i))
                         aux = df.loc[(df.nucleipref == nucleipref) & \
                                       (df.model == model) & \
                                       (df.nvertices == n) & \
@@ -81,20 +84,21 @@ def parse_results(respath, aggregatedpath):
 
                         if len(xs) < 4: continue # Insufficient sample for curve_fit
 
-                        p0 = [6, -7, 3, 0]
+                        p0 = [6, -7, 3, 0] # Poly3
                         params, _ = curve_fit(func, xs, ys, p0=p0)
 
                         # Plot
-                        # xs2 = np.linspace(np.min(xs), np.max(xs), 100)
-                        # ys2 = func(xs2, *params)
-                        # plt.scatter(xs, ys, c='blue')
-                        # plt.xlabel('c')
-                        # plt.ylabel('r')
-                        # plt.plot(xs2, ys2, c='red')
-                        # plt.ylim(0, 1)
-                        # plt.xlim(0, 1)
-                        # plt.savefig('/tmp/{:03d}.png'.format(i))
-                        # plt.close()
+                        xs2 = np.linspace(np.min(xs), np.max(xs), 100)
+                        ys2 = func(xs2, *params)
+                        plt.scatter(xs, ys, c='blue')
+                        plt.xlabel('c')
+                        plt.ylabel('r')
+                        plt.plot(xs2, ys2, c='red')
+                        plt.ylim(0, 1)
+                        plt.xlim(0, 1)
+                        outpath = pjoin(outdir, '{:03d}.png'.format(i))
+                        plt.savefig(outpath)
+                        plt.close()
 
                         dataiters.append([cmax, *params])
 
@@ -108,7 +112,6 @@ def parse_results(respath, aggregatedpath):
         'amean,bmean,cmean,dmean,cmaxstd,astd,bstd,cstd,dstd'.split(',')
     dffinal = pd.DataFrame(data, columns=cols)
     dffinal.to_csv(aggregatedpath, index=False)
-)
     return dffinal
 
 ##########################################################
@@ -123,12 +126,18 @@ def main():
     os.makedirs(args.outdir, exist_ok=True)
     readmepath = create_readme(sys.argv, args.outdir)
 
+    df = pd.read_csv(args.res)
+    dfaggreg = aggregate_results(df)
+
     dfpath = pjoin(args.outdir, 'aggregated.csv')
 
     if not os.path.exists(dfpath):
         df = parse_results(args.res, dfpath)
     else:
         df = pd.read_csv(dfpath)
+
+    plot_all(df, args.outdir)
+
     # xx, yy = np.mgrid[nvertices, 0:1:0.05]
     info('Elapsed time:{}'.format(time.time()-t0))
     info('Output generated in {}'.format(args.outdir))
