@@ -293,7 +293,7 @@ def main():
             res.append(beg + rr)
 
     df = pd.DataFrame()
-    cols = ['model', 'nvertices', 'k', 'nucleipref', 'c', 'i', 'r', 's']
+    cols = ['model', 'nvertices', 'k', 'nucleipref', 'i', 'c', 'r', 's']
 
     for i, col in enumerate(cols):
         df[col] = [x[i] for x in res]
