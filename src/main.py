@@ -178,7 +178,7 @@ def get_rgg_params(nvertices, avgdegree):
 
 ##########################################################
 def run_experiment(params):
-    """Single run, given a model. nvertices, avgdegree, nucleiratio, and niter"""
+    """Sequential runs, given the model. nvertices, avgdegree, nucleiratio, and niter"""
     model = params['model']
     nvertices = params['nvertices']
     avgdegree = params['avgdegree']
@@ -198,7 +198,7 @@ def run_experiment(params):
 
 ##########################################################
 def run_subpexperiment(gorig, nucleipref, nucleiratios, iter_):
-    """Run one experiment"""
+    """Run a single experiment"""
     # info(inspect.stack()[0][3] + '()')
 
     nvertices = gorig.vcount()
