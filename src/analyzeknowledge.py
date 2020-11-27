@@ -10,25 +10,12 @@ import inspect
 import sys
 import numpy as np
 import pandas as pd
-import matplotlib; matplotlib.use('Agg')
+# import matplotlib; matplotlib.use('Agg')
+import matplotlib
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
 from myutils import info, create_readme
-import src.main
-
-########################################################## KDE
-def create_meshgrid(x, y, nx=100, ny=100, relmargin=.1):
-    """Create a meshgrid around @x and @y with @nx, @ny tiles and relative
-    margins @relmargins"""
-
-    # marginx = (max(x) - min(x)) * relmargin
-    # marginy = (max(y) - min(y)) * relmargin
-    # xrange = [np.min(x) - marginx, np.max(x) + marginx]
-    # yrange = [np.min(y) - marginy - .15, np.max(y) + marginy]
-    # dx = (xrange[1] - xrange[0]) / nx
-    # dy = (yrange[1] - yrange[0]) / ny
-    xx, yy = np.mgrid[0:1:0.05, 0:1:0.05]
-    return xx, yy
+from myutils import plot as myplot
 
 #############################################################
 def plot_surface(f, x, y, xx, yy, outdir):
@@ -52,8 +39,8 @@ def aggregate_results(df, outdir):
     aggregpath = pjoin(outdir, 'aggregated.csv')
 
     if os.path.exists(aggregpath):
-        info('Loading existing aggregated results:{}'.format(aggregatedpath))
-        return pd.read_csv(aggregatedpath)
+        info('Loading existing aggregated results:{}'.format(aggregpath))
+        return pd.read_csv(aggregpath)
 
     models = np.unique(df.model)
     nvertices = np.unique(df.nvertices)
@@ -169,12 +156,20 @@ def main():
 
     # xx, yy = np.mgrid[nvertices, 0:1:0.05]
     from mpl_toolkits.mplot3d import Axes3D
-    filtered = dfaggreg.loc[(dfaggreg.model == 'er') & (dfaggreg.nucleipref == 'un')]
-    breakpoint()
+    filtered = dfaggreg.loc[(dfaggreg.nucleipref == 'un') & \
+                            (dfaggreg.model == 'er') ]
+    x = filtered.nvertices.to_numpy()
+    y = filtered.avgdegree.to_numpy()
+    z = filtered.cmaxmean.to_numpy()
 
     fig = plt.figure()
     ax = Axes3D(fig)
-    surf = ax.plot_trisurf(x, y, z, cmap=cm.jet, linewidth=0.1)
+    ax.set_xlabel('nvertices')
+    ax.set_ylabel('avgdegree')
+    surf = ax.plot_trisurf(x, y, z, color=(0, 0, 0, 0),
+                           edgecolor='black')
+    # plt.show()
+    plt.savefig(pjoin(args.outdir, 'wireframe.png'))
 
     info('Elapsed time:{}'.format(time.time()-t0))
     info('Output generated in {}'.format(args.outdir))
