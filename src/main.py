@@ -197,12 +197,12 @@ def run_experiment(params):
     return ret
 
 ##########################################################
-def run_subpexperiment(gorig, nucleipref, nucleiratios, i):
+def run_subpexperiment(gorig, nucleipref, nucleiratios, iter_):
     """Run one experiment"""
     # info(inspect.stack()[0][3] + '()')
 
     nvertices = gorig.vcount()
-    ret = [[i, 0.0, 0, 1.0]] # c,r,s
+    ret = [[iter_, 0.0, 0, 1.0]] # c,r,s
 
     rmax = 0
     idxmax = 0
@@ -228,7 +228,7 @@ def run_subpexperiment(gorig, nucleipref, nucleiratios, i):
 
         r = lenunique / nvertices
         s = lenunique / lenrepeated if lenunique > 0 else 0
-        ret.append([i, c, r, s])
+        ret.append([iter_, c, r, s])
 
         if r > rmax:
             rmax = r
