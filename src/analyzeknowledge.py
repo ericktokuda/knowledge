@@ -59,25 +59,26 @@ def aggregate_results(df, outdir):
     nvertices = np.unique(df.nvertices)
     nucleiprefs = np.unique(df.nucleipref)
     ks = np.unique(df.k)
-    niters = np.unique(df.i)
+    niters = np.unique(df.i).astype(int)
 
-    def poly2(x, a, b, c): return a*x*x + b*x + c
+    def poly2(x, a, b, c, d): return a*x*x + b*x + c
     def poly3(x, a, b, c, d): return a*x*x*x + b*x*x + c*x + d
-    def myexp(x, a, b, c, d): return a*np.exp(b*x) + c
-    func = poly3
+    def myexp(x, a, b): return a*(np.exp(b*x) - 1) # Force it to have the (0, 0)
+    func = myexp
 
     data = []
     for nucleipref in nucleiprefs:
         for model in models:
+            info('model:{}'.format(model))
             for n in nvertices:
                 for k in ks:
                     dataiters = []
                     for i in niters:
-                        info('i:{}'.format(i))
                         aux = df.loc[(df.nucleipref == nucleipref) & \
                                       (df.model == model) & \
                                       (df.nvertices == n) & \
                                       (df.k == k) &(df.i == i)]
+
                         rs = aux.r.to_numpy()
                         idxmax = np.argmax(rs)
                         cmax = aux.c.iloc[idxmax]
@@ -86,22 +87,21 @@ def aggregate_results(df, outdir):
 
                         if len(xs) < 4: continue # Insufficient sample for curve_fit
 
-                        p0 = [6, -7, 3, 0] # Poly3
-                        params, _ = curve_fit(func, xs, ys, p0=p0)
+                        # p2:[-10,4,0,0], p3:[6,-7,3,0], myexp:[-.5, -6]
+                        p0 = [-.5, -6] # exp
+                        params, _ = curve_fit(func, xs, ys, p0=p0, maxfev=10000)
 
-                        # outpath = pjoin(outdir, '{:03d}.png'.format(i))
+                        outpath = pjoin(outdir, '{:03d}.png'.format(i))
                         # plot_cxr(xs, ys, outpath, func=func, params=params)
-
                         dataiters.append([cmax, *params])
 
                     means = np.array(dataiters).mean(axis=0)
                     stds = np.array(dataiters).std(axis=0)
 
-                    data.append([nucleipref,model, n, k, *means, *stds])
-
+                    data.append([nucleipref, model, n, k, *means, *stds])
 
     cols = 'nucleipref,model,nvertices,avgdegree,cmaxmean,' \
-        'amean,bmean,cmean,dmean,cmaxstd,astd,bstd,cstd,dstd'.split(',')
+        'amean,bmean,cmaxstd,astd,bstd'.split(',')
     dffinal = pd.DataFrame(data, columns=cols)
     dffinal.to_csv(aggregpath, index=False)
     return dffinal
@@ -166,9 +166,16 @@ def main():
     df = pd.read_csv(args.res)
     # plot_origpoints(df, args.outdir)
     dfaggreg = aggregate_results(df, args.outdir)
-    breakpoint()
 
     # xx, yy = np.mgrid[nvertices, 0:1:0.05]
+    from mpl_toolkits.mplot3d import Axes3D
+    filtered = dfaggreg.loc[(dfaggreg.model == 'er') & (dfaggreg.nucleipref == 'un')]
+    breakpoint()
+
+    fig = plt.figure()
+    ax = Axes3D(fig)
+    surf = ax.plot_trisurf(x, y, z, cmap=cm.jet, linewidth=0.1)
+
     info('Elapsed time:{}'.format(time.time()-t0))
     info('Output generated in {}'.format(args.outdir))
 
