@@ -74,10 +74,11 @@ def parse_results(df, outdir):
     return dffinal
 
 ##########################################################
-def aggregate_results(df, outdir):
+def find_coeffs(df, outdir):
     """Parse results from simulation"""
     info(inspect.stack()[0][3] + '()')
 
+    os.makedirs(outdir, exist_ok=True)
     aggregpath = pjoin(outdir, 'aggregated.csv')
 
     if os.path.exists(aggregpath):
@@ -87,8 +88,7 @@ def aggregate_results(df, outdir):
     models = np.unique(df.model)
     nvertices = np.unique(df.nvertices)
     nucleiprefs = np.unique(df.nucleipref)
-    ks = np.unique(df.k)
-    niters = np.unique(df.i).astype(int)
+    ks = np.unique(df.avgdegree)
 
     def poly2(x, a, b, c, d): return a*x*x + b*x + c
     def poly3(x, a, b, c, d): return a*x*x*x + b*x*x + c*x + d
@@ -104,36 +104,31 @@ def aggregate_results(df, outdir):
             for n in nvertices:
                 df3 = df2.loc[df2.nvertices == n]
                 for k in ks:
-                    df4 = df3.loc[df3.k == k]
-                    dataiters = []
-                    for i in niters:
-                        df5 = df4.loc[df4.i == i]
-                        idxmax = np.argmax(df5.r.to_numpy())
-                        aux = df5.iloc[:idxmax + 1]
+                    df4 = df3.loc[df3.avgdegree == k]
 
-                        rs = aux.r.to_numpy()
-                        idxmax = np.argmax(rs)
-                        cmax = aux.c.iloc[idxmax]
-                        xs = aux.c.to_numpy()[:idxmax + 1]
-                        ys = aux.r.to_numpy()[:idxmax + 1]
+                    idxmax = np.argmax(df4.rmean.to_numpy())
+                    aux = df4.iloc[:idxmax + 1]
 
-                        if len(xs) < 4: continue # Insufficient sample for curve_fit
+                    rs = aux.rmean.to_numpy()
+                    idxmax = np.argmax(rs)
+                    cmax = aux.c.iloc[idxmax]
 
-                        # p2:[-10,4,0,0], p3:[6,-7,3,0], myexp:[-.5, -6]
-                        p0 = [-.5, -6] # exp
-                        params, _ = curve_fit(func, xs, ys, p0=p0, maxfev=10000)
+                    xs = aux.c.to_numpy()[:idxmax + 1]
+                    ys = aux.rmean.to_numpy()[:idxmax + 1]
 
-                        outpath = pjoin(outdir, '{:03d}.png'.format(i))
-                        # scatter_c_vs_r(xs, ys, outpath, func=func, params=params)
-                        dataiters.append([cmax, *params])
+                    if len(xs) < 4: continue # Insufficient sample for curve_fit
 
-                    means = np.array(dataiters).mean(axis=0)
-                    stds = np.array(dataiters).std(axis=0)
+                    # p2:[-10,4,0,0], p3:[6,-7,3,0], myexp:[-.5, -6]
+                    p0 = [-.5, -6] # exp
+                    params, _ = curve_fit(func, xs, ys, p0=p0, maxfev=10000)
 
-                    data.append([nucleipref, model, n, k, *means, *stds])
+                    outpath = pjoin(outdir, '{}_{}_{}_{}.png'.format(
+                        nucleipref, model, n, k))
+                    scatter_c_vs_r(xs, ys, outpath, func=func, params=params)
 
-    cols = 'nucleipref,model,nvertices,avgdegree,cmaxmean,' \
-        'amean,bmean,cmaxstd,astd,bstd'.split(',')
+                    data.append([nucleipref, model, n, k, cmax, *params])
+
+    cols = 'nucleipref,model,nvertices,avgdegree,cmax,a,b'.split(',')
     dffinal = pd.DataFrame(data, columns=cols)
     dffinal.to_csv(aggregpath, index=False)
     return dffinal
@@ -202,8 +197,7 @@ def plot_triangulations(df, outdir):
         x = filtered.loc[(filtered.model == model)].nvertices.to_numpy()
         y = filtered.loc[(filtered.model == model)].avgdegree.to_numpy()
         for param in params:
-            print(model)
-            z = filtered.loc[(filtered.model == model)][param + 'mean'].to_numpy()
+            z = filtered.loc[(filtered.model == model)][param].to_numpy()
 
             fig = plt.figure()
             ax = Axes3D(fig)
@@ -213,12 +207,7 @@ def plot_triangulations(df, outdir):
             ax.set_zlabel(param + 'mean')
 
             # surf = ax.plot_trisurf(x, y, z, color=(0, 0, 0, 0), edgecolor='black')
-            surf = ax.plot_trisurf(x, y, z, color='gray')
-
-            # surf = ax.plot_trisurf(x, y, z + filtered[param + 'std'].to_numpy(),
-                                   # color=(0, 0, 0, 0), edgecolor='dimgray')
-            # surf = ax.plot_trisurf(x, y, z - filtered[param + 'std'].to_numpy(),
-                                   # color=(0, 0, 0, 0), edgecolor='dimgray')
+            surf = ax.plot_trisurf(x, y, z, color=(.2, .2, .2, .8))
             # plt.show()
             plt.savefig(pjoin(outdir, '{}_{}.png'.format(param, model)))
             plt.close()
@@ -276,11 +265,10 @@ def main():
     df = pd.read_csv(args.res)
 
     # plot_origpoints(df, args.outdir)
-    # dfparsed = parse_results(df, args.outdir)
+    dfparsed = parse_results(df, args.outdir)
     # plot_means(dfparsed, pjoin(args.outdir, 'plots_r_s'))
-
-    dfaggreg = aggregate_results(df, args.outdir)
-    plot_triangulations(dfaggreg, pjoin(args.outdir, 'plots_triangulation'))
+    dfcoeffs = find_coeffs(dfparsed, pjoin(args.outdir, 'fits'))
+    plot_triangulations(dfcoeffs, pjoin(args.outdir, 'surface_tri'))
 
     info('Elapsed time:{}'.format(time.time()-t0))
     info('Output generated in {}'.format(args.outdir))
