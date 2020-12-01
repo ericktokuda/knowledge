@@ -16,6 +16,7 @@ import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
 from myutils import info, create_readme
 from myutils import plot as myplot
+from mpl_toolkits.mplot3d import Axes3D
 
 #############################################################
 def plot_surface(f, x, y, xx, yy, outdir):
@@ -33,8 +34,49 @@ def plot_surface(f, x, y, xx, yy, outdir):
     plt.savefig(pjoin(outdir, 'surfaceplot.pdf'))
 
 ##########################################################
+def parse_results(df, outdir):
+    """Parse results from simulation"""
+    info(inspect.stack()[0][3] + '()')
+
+    parsedpath = pjoin(outdir, 'parsed.csv')
+
+    if os.path.exists(parsedpath):
+        info('Loading existing aggregated results:{}'.format(parsedpath))
+        return pd.read_csv(parsedpath)
+
+    models = np.unique(df.model)
+    nvertices = np.unique(df.nvertices)
+    nucleiprefs = np.unique(df.nucleipref)
+    ks = np.unique(df.k)
+    niters = np.unique(df.i)
+    cs = np.unique(df.c)
+
+    data = []
+
+    for nucleipref in nucleiprefs:
+        df1 = df.loc[df.nucleipref == nucleipref]
+        for model in models:
+            df2 = df1.loc[df1.model == model]
+            for n in nvertices:
+                df3 = df2.loc[df2.nvertices == n]
+                for k in ks:
+                    df4 = df3.loc[df3.k == k]
+                    for c in cs:
+                        df5 = df4.loc[df4.c == c]
+                        r = df5.r.mean(), df5.r.std()
+                        s = df5.s.mean(), df5.s.std()
+                        data.append([nucleipref, model, n, k, c, *r, *s])
+
+    cols = 'nucleipref,model,nvertices,avgdegree,c,' \
+        'rmean,rstd,smean,sstd'.split(',')
+    dffinal = pd.DataFrame(data, columns=cols)
+    dffinal.to_csv(parsedpath, index=False)
+    return dffinal
+
+##########################################################
 def aggregate_results(df, outdir):
     """Parse results from simulation"""
+    info(inspect.stack()[0][3] + '()')
 
     aggregpath = pjoin(outdir, 'aggregated.csv')
 
@@ -55,16 +97,19 @@ def aggregate_results(df, outdir):
 
     data = []
     for nucleipref in nucleiprefs:
+        df1 = df.loc[df.nucleipref == nucleipref]
         for model in models:
             info('model:{}'.format(model))
+            df2 = df1.loc[df1.model == model]
             for n in nvertices:
+                df3 = df2.loc[df2.nvertices == n]
                 for k in ks:
+                    df4 = df3.loc[df3.k == k]
                     dataiters = []
                     for i in niters:
-                        aux = df.loc[(df.nucleipref == nucleipref) & \
-                                      (df.model == model) & \
-                                      (df.nvertices == n) & \
-                                      (df.k == k) &(df.i == i)]
+                        df5 = df4.loc[df4.i == i]
+                        idxmax = np.argmax(df5.r.to_numpy())
+                        aux = df5.iloc[:idxmax + 1]
 
                         rs = aux.r.to_numpy()
                         idxmax = np.argmax(rs)
@@ -79,7 +124,7 @@ def aggregate_results(df, outdir):
                         params, _ = curve_fit(func, xs, ys, p0=p0, maxfev=10000)
 
                         outpath = pjoin(outdir, '{:03d}.png'.format(i))
-                        # plot_cxr(xs, ys, outpath, func=func, params=params)
+                        # scatter_c_vs_r(xs, ys, outpath, func=func, params=params)
                         dataiters.append([cmax, *params])
 
                     means = np.array(dataiters).mean(axis=0)
@@ -94,7 +139,7 @@ def aggregate_results(df, outdir):
     return dffinal
 
 ##########################################################
-def plot_cxr(cs, rs, outpath, func=None, params=None):
+def scatter_c_vs_r(cs, rs, outpath, func=None, params=None):
     """Plot C x R"""
     # info(inspect.stack()[0][3] + '()')
     W = 640; H = 480
@@ -136,7 +181,85 @@ def plot_origpoints(df, outdir):
                         f = '{}_{}_{}_{}_{:02d}.png'.format(
                             nucleipref, model, n, k, i)
                         outpath = pjoin(outdir, f)
-                        plot_cxr(cs, rs, outpath)
+                        scatter_c_vs_r(cs, rs, outpath)
+
+
+##########################################################
+def plot_triangulations(df, outdir):
+    """Short description """
+    info(inspect.stack()[0][3] + '()')
+    os.makedirs(outdir, exist_ok=True)
+    # xx, yy = np.mgrid[nvertices, 0:1:0.05]
+    models = np.unique(df.model)
+    nucleiprefs = np.unique(df.nucleipref)
+
+    nucleipref = 'un'
+    filtered = df.loc[(df.nucleipref == nucleipref)]
+
+    params = ['cmax', 'a', 'b']
+
+    for model in models:
+        x = filtered.loc[(filtered.model == model)].nvertices.to_numpy()
+        y = filtered.loc[(filtered.model == model)].avgdegree.to_numpy()
+        for param in params:
+            print(model)
+            z = filtered.loc[(filtered.model == model)][param + 'mean'].to_numpy()
+
+            fig = plt.figure()
+            ax = Axes3D(fig)
+            ax.set_xlabel('nvertices')
+            ax.set_ylabel('avgdegree')
+
+            ax.set_zlabel(param + 'mean')
+
+            # surf = ax.plot_trisurf(x, y, z, color=(0, 0, 0, 0), edgecolor='black')
+            surf = ax.plot_trisurf(x, y, z, color='gray')
+
+            # surf = ax.plot_trisurf(x, y, z + filtered[param + 'std'].to_numpy(),
+                                   # color=(0, 0, 0, 0), edgecolor='dimgray')
+            # surf = ax.plot_trisurf(x, y, z - filtered[param + 'std'].to_numpy(),
+                                   # color=(0, 0, 0, 0), edgecolor='dimgray')
+            # plt.show()
+            plt.savefig(pjoin(outdir, '{}_{}.png'.format(param, model)))
+            plt.close()
+
+##########################################################
+def plot_means(df, outdir):
+    """Plot r and s means """
+    info(inspect.stack()[0][3] + '()')
+
+    os.makedirs(outdir, exist_ok=True)
+
+    W = 640*2; H = 480
+    models = np.unique(df.model)
+    nvertices = np.unique(df.nvertices)
+    nucleiprefs = np.unique(df.nucleipref)
+    ks = np.unique(df.avgdegree)
+    cs = np.unique(df.c)
+
+    for nucleipref in nucleiprefs:
+        df1 = df.loc[df.nucleipref == nucleipref]
+        for model in models:
+            df2 = df1.loc[df1.model == model]
+            for n in nvertices:
+                df3 = df2.loc[df2.nvertices == n]
+                for k in ks:
+                    df4 = df3.loc[df3.avgdegree == k]
+                    fig, ax = plt.subplots(1, 2, figsize=(W*.01, H*.01), dpi=100)
+                    ax[0].errorbar(cs, df4.rmean, yerr=df4.rstd)
+                    ax[1].errorbar(cs, df4.smean, yerr=df4.sstd)
+                    ax[0].set_xlabel('c')
+                    ax[0].set_ylabel('r')
+                    ax[0].set_xlim(0, 1)
+                    ax[0].set_ylim(0, 1)
+                    ax[1].set_xlabel('c')
+                    ax[1].set_ylabel('s')
+                    ax[1].set_xlim(0, 1)
+                    ax[1].set_ylim(0, 1)
+                    outpath = pjoin(outdir, '{}_{}_{}_{}.png'.format(
+                        nucleipref, model, n, k))
+                    plt.savefig(outpath)
+                    plt.close()
 
 ##########################################################
 def main():
@@ -151,25 +274,13 @@ def main():
     readmepath = create_readme(sys.argv, args.outdir)
 
     df = pd.read_csv(args.res)
+
     # plot_origpoints(df, args.outdir)
+    # dfparsed = parse_results(df, args.outdir)
+    # plot_means(dfparsed, pjoin(args.outdir, 'plots_r_s'))
+
     dfaggreg = aggregate_results(df, args.outdir)
-
-    # xx, yy = np.mgrid[nvertices, 0:1:0.05]
-    from mpl_toolkits.mplot3d import Axes3D
-    filtered = dfaggreg.loc[(dfaggreg.nucleipref == 'un') & \
-                            (dfaggreg.model == 'er') ]
-    x = filtered.nvertices.to_numpy()
-    y = filtered.avgdegree.to_numpy()
-    z = filtered.cmaxmean.to_numpy()
-
-    fig = plt.figure()
-    ax = Axes3D(fig)
-    ax.set_xlabel('nvertices')
-    ax.set_ylabel('avgdegree')
-    surf = ax.plot_trisurf(x, y, z, color=(0, 0, 0, 0),
-                           edgecolor='black')
-    # plt.show()
-    plt.savefig(pjoin(args.outdir, 'wireframe.png'))
+    plot_triangulations(dfaggreg, pjoin(args.outdir, 'plots_triangulation'))
 
     info('Elapsed time:{}'.format(time.time()-t0))
     info('Output generated in {}'.format(args.outdir))
