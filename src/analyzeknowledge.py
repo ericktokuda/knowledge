@@ -110,6 +110,7 @@ def find_coeffs(df, outdir):
                     aux = df4.iloc[:idxmax + 1]
 
                     rs = aux.rmean.to_numpy()
+                    rmax = np.max(aux.rmean.to_numpy())
                     idxmax = np.argmax(rs)
                     cmax = aux.c.iloc[idxmax]
 
@@ -126,9 +127,9 @@ def find_coeffs(df, outdir):
                         nucleipref, model, n, k))
                     scatter_c_vs_r(xs, ys, outpath, func=func, params=params)
 
-                    data.append([nucleipref, model, n, k, cmax, *params])
+                    data.append([nucleipref, model, n, k, cmax, rmax, *params])
 
-    cols = 'nucleipref,model,nvertices,avgdegree,cmax,a,b'.split(',')
+    cols = 'nucleipref,model,nvertices,avgdegree,cmax,rmax,a,b'.split(',')
     dffinal = pd.DataFrame(data, columns=cols)
     dffinal.to_csv(aggregpath, index=False)
     return dffinal
@@ -191,7 +192,7 @@ def plot_triangulations(df, outdir):
     nucleipref = 'un'
     filtered = df.loc[(df.nucleipref == nucleipref)]
 
-    params = ['cmax', 'a', 'b']
+    params = ['cmax', 'a', 'b', 'rmax']
 
     for model in models:
         x = filtered.loc[(filtered.model == model)].nvertices.to_numpy()
@@ -204,7 +205,7 @@ def plot_triangulations(df, outdir):
             ax.set_xlabel('nvertices')
             ax.set_ylabel('avgdegree')
 
-            ax.set_zlabel(param + 'mean')
+            ax.set_zlabel(param)
 
             # surf = ax.plot_trisurf(x, y, z, color=(0, 0, 0, 0), edgecolor='black')
             surf = ax.plot_trisurf(x, y, z, color=(.2, .2, .2, .8))
