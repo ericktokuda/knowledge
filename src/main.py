@@ -193,19 +193,16 @@ def run_experiment(params):
 
     ret = []
     for i in range(niter):
-        ret.extend(run_subpexperiment(g, nucleipref, nucleiratios, i))
+        ret.extend(run_subexperiment(g, nucleipref, nucleiratios, i))
     return ret
 
 ##########################################################
-def run_subpexperiment(gorig, nucleipref, nucleiratios, iter_):
+def run_subexperiment(gorig, nucleipref, nucleiratios, iter_):
     """Run a single experiment"""
     # info(inspect.stack()[0][3] + '()')
 
     nvertices = gorig.vcount()
     ret = [[iter_, 0.0, 0, 1.0]] # c,r,s
-
-    rmax = 0
-    idxmax = 0
 
     for i, c in enumerate(nucleiratios):
         nnuclei = int(c * nvertices)
@@ -230,11 +227,7 @@ def run_subpexperiment(gorig, nucleipref, nucleiratios, iter_):
         s = lenunique / lenrepeated if lenunique > 0 else 0
         ret.append([iter_, c, r, s])
 
-        if r > rmax:
-            rmax = r
-            idxmax = i + 1
-
-    return ret[:idxmax+1]
+    return ret
 
 ##########################################################
 def main():
@@ -253,11 +246,11 @@ def main():
     random.seed(args.seed)
 
     models = ['ba', 'er', 'gr'] # ['er', 'ba', 'gr']
-    nvertices = [100,500,1000] # [100, 500, 1000]
+    nvertices = [100, 500, 1000] # [100, 500, 1000]
     avgdegrees = np.arange(4, 21) # np.arange(4, 21)
     nucleiprefs = ['un', 'de'] # [UNIFORM, DEGREE]
     nucleistep = .01
-    niter = 100
+    niter = 200
 
     append_to_file(readmepath, 'models:{}'.format(models))
     append_to_file(readmepath, 'nvertices:{}'.format(nvertices))
