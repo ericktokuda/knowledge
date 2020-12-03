@@ -185,7 +185,7 @@ def run_experiment(params):
     nucleipref = params['nucleipref']
     nucleistep = params['nucleistep']
     niter = params['niter']
-    nucleiratios = np.arange(nucleistep, .5, nucleistep) # np.arange(0, 1.01, .05)
+    nucleiratios = np.arange(nucleistep, 1.0, nucleistep) # np.arange(0, 1.01, .05)
 
     info('{},{},{},{}'.format(model, nvertices, avgdegree, nucleipref))
 
