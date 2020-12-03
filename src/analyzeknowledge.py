@@ -189,18 +189,18 @@ def plot_contours(df, outdir):
     models = np.unique(df.model)
     nucleiprefs = np.unique(df.nucleipref)
 
-    nucleipref = 'de'
-    filtered = df.loc[(df.nucleipref == nucleipref)]
-
+    # nucleipref = 'de'
+    # filtered = df.loc[(df.nucleipref == nucleipref)]
     params = ['cmax', 'a', 'b', 'rmax']
 
+
     for nucleipref in nucleiprefs:
+        filtered = df.loc[(df.nucleipref == nucleipref)]
         for model in models:
             x = filtered.loc[(filtered.model == model)].nvertices.to_numpy()
             y = filtered.loc[(filtered.model == model)].avgdegree.to_numpy()
             for param in params:
                 z = filtered.loc[(filtered.model == model)][param].to_numpy()
-
                 f, ax = plt.subplots()
                 pp = ax.tricontourf(x, y, z, 20)
                 ax.plot(x,y, 'ko ')
@@ -209,6 +209,71 @@ def plot_contours(df, outdir):
                                                                 param, model)))
                 plt.close()
 
+##########################################################
+def plot_slices(df, outdir):
+    """Short description """
+    info(inspect.stack()[0][3] + '()')
+    os.makedirs(outdir, exist_ok=True)
+    # xx, yy = np.mgrid[nvertices, 0:1:0.05]
+    models = np.unique(df.model)
+    nucleiprefs = np.unique(df.nucleipref)
+
+    # nucleipref = 'de'
+
+    params = ['cmax', 'a', 'b', 'rmax']
+
+    for nucleipref in nucleiprefs:
+        filtered = df.loc[(df.nucleipref == nucleipref)]
+        for param in params:
+            f, ax = plt.subplots()
+            for model in models:
+                # z = filtered.loc[(filtered.model == model) & (filtered.nvertices == 500)][param].to_numpy()
+                z = filtered.loc[(filtered.model == model) & (filtered.avgdegree == 8)][param].to_numpy()
+                ax.plot(np.unique(df.nvertices), z, label=model)
+
+            # ax.set_xlabel('avgdegree')
+            ax.set_xlabel('nvertices')
+            ax.set_ylabel(param)
+            plt.legend()
+            plt.savefig(pjoin(outdir, '{}_{}_{}.png'.format(nucleipref,
+                                                            param, model)))
+            plt.close()
+
+##########################################################
+def plot_parameters_pairwise(df, outdir):
+    """Short description """
+    info(inspect.stack()[0][3] + '()')
+    os.makedirs(outdir, exist_ok=True)
+    models = np.unique(df.model)
+    avgdegrees = np.unique(df.avgdegree)
+    nucleiprefs = np.unique(df.nucleipref)
+
+    L = 16
+    combs = [['b', 'rmax'], ['cmax', 'rmax'], ['b', 'cmax']]
+
+    markers = ['o', 's']
+    colours = ['black', 'blue', 'red']
+
+    dforig = df.copy()
+
+    for pair in combs:
+        param1, param2 = pair
+        f, ax = plt.subplots(figsize=(L, L))
+        for i, nucleipref in enumerate(nucleiprefs):
+            df = dforig[dforig.nucleipref == nucleipref]
+            marker = markers[i]
+            for j, model in enumerate(models):
+                colour = colours[j]
+                plt.scatter(np.abs(df[df.model == model][param1]),
+                            df[df.model == model][param2],
+                            label=model, s=df[df.model == model].nvertices/4,
+                            marker=marker, c=colour)
+        plt.legend()
+        ax.set_xlabel(param1)
+        ax.set_ylabel(param2)
+        plt.legend()
+        plt.savefig(pjoin(outdir, '{}_{}.png'.format(param1, param2)))
+        plt.close()
 
 ##########################################################
 def plot_triangulations(df, outdir):
@@ -300,8 +365,9 @@ def main():
     dfparsed = parse_results(df, args.outdir)
     # plot_means(dfparsed, pjoin(args.outdir, 'plots_r_s'))
     dfcoeffs = find_coeffs(dfparsed, pjoin(args.outdir, 'fits'))
+    plot_parameters_pairwise(dfcoeffs, pjoin(args.outdir, 'params'))
     plot_contours(dfcoeffs, pjoin(args.outdir, 'contours'))
-    plot_triangulations(dfcoeffs, pjoin(args.outdir, 'surface_tri'))
+    # plot_triangulations(dfcoeffs, pjoin(args.outdir, 'surface_tri'))
 
     info('Elapsed time:{}'.format(time.time()-t0))
     info('Output generated in {}'.format(args.outdir))
