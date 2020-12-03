@@ -75,7 +75,8 @@ def weighted_random_sampling(items, weights, return_idx=False):
             if return_idx: return i
             else: return items[i]
 
-    info('Something wrong x:{}'.format(x))
+    info('Error when sampling items:{}, weights:{}, x:{:.02f}'. \
+         format(items, weights, x))
 
     if return_idx: return -1
     else: return items[-1]
