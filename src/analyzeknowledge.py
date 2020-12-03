@@ -181,6 +181,36 @@ def plot_origpoints(df, outdir):
 
 
 ##########################################################
+def plot_contours(df, outdir):
+    """Short description """
+    info(inspect.stack()[0][3] + '()')
+    os.makedirs(outdir, exist_ok=True)
+    # xx, yy = np.mgrid[nvertices, 0:1:0.05]
+    models = np.unique(df.model)
+    nucleiprefs = np.unique(df.nucleipref)
+
+    nucleipref = 'de'
+    filtered = df.loc[(df.nucleipref == nucleipref)]
+
+    params = ['cmax', 'a', 'b', 'rmax']
+
+    for nucleipref in nucleiprefs:
+        for model in models:
+            x = filtered.loc[(filtered.model == model)].nvertices.to_numpy()
+            y = filtered.loc[(filtered.model == model)].avgdegree.to_numpy()
+            for param in params:
+                z = filtered.loc[(filtered.model == model)][param].to_numpy()
+
+                f, ax = plt.subplots()
+                pp = ax.tricontourf(x, y, z, 20)
+                ax.plot(x,y, 'ko ')
+                f.colorbar(pp)
+                plt.savefig(pjoin(outdir, '{}_{}_{}.png'.format(nucleipref,
+                                                                param, model)))
+                plt.close()
+
+
+##########################################################
 def plot_triangulations(df, outdir):
     """Short description """
     info(inspect.stack()[0][3] + '()')
@@ -189,30 +219,31 @@ def plot_triangulations(df, outdir):
     models = np.unique(df.model)
     nucleiprefs = np.unique(df.nucleipref)
 
-    nucleipref = 'un'
+    nucleipref = 'de'
     filtered = df.loc[(df.nucleipref == nucleipref)]
 
     params = ['cmax', 'a', 'b', 'rmax']
 
-    for model in models:
-        x = filtered.loc[(filtered.model == model)].nvertices.to_numpy()
-        y = filtered.loc[(filtered.model == model)].avgdegree.to_numpy()
-        for param in params:
-            z = filtered.loc[(filtered.model == model)][param].to_numpy()
+    for nucleipref in nucleiprefs:
+        for model in models:
+            x = filtered.loc[(filtered.model == model)].nvertices.to_numpy()
+            y = filtered.loc[(filtered.model == model)].avgdegree.to_numpy()
+            for param in params:
+                z = filtered.loc[(filtered.model == model)][param].to_numpy()
 
-            fig = plt.figure()
-            ax = Axes3D(fig)
-            ax.set_xlabel('nvertices')
-            ax.set_ylabel('avgdegree')
+                fig = plt.figure()
+                ax = Axes3D(fig)
+                ax.set_xlabel('nvertices')
+                ax.set_ylabel('avgdegree')
 
-            ax.set_zlabel(param)
+                ax.set_zlabel(param)
 
-            # surf = ax.plot_trisurf(x, y, z, color=(0, 0, 0, 0), edgecolor='black')
-            surf = ax.plot_trisurf(x, y, z, color=(.2, .2, .2, .8))
-            # plt.show()
-            plt.savefig(pjoin(outdir, '{}_{}.png'.format(param, model)))
-            plt.close()
-
+                # surf = ax.plot_trisurf(x, y, z, color=(0, 0, 0, 0), edgecolor='black')
+                surf = ax.plot_trisurf(x, y, z, color=(.2, .2, .2, .8))
+                # plt.show()
+                plt.savefig(pjoin(outdir, '{}_{}_{}.png'.format(nucleipref,
+                                                                param, model)))
+                plt.close()
 ##########################################################
 def plot_means(df, outdir):
     """Plot r and s means """
@@ -269,6 +300,7 @@ def main():
     dfparsed = parse_results(df, args.outdir)
     # plot_means(dfparsed, pjoin(args.outdir, 'plots_r_s'))
     dfcoeffs = find_coeffs(dfparsed, pjoin(args.outdir, 'fits'))
+    plot_contours(dfcoeffs, pjoin(args.outdir, 'contours'))
     plot_triangulations(dfcoeffs, pjoin(args.outdir, 'surface_tri'))
 
     info('Elapsed time:{}'.format(time.time()-t0))
