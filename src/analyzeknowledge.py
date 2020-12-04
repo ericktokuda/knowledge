@@ -156,6 +156,7 @@ def scatter_c_vs_r(cs, rs, outpath, func=None, params=None):
 def plot_origpoints(df, outdir):
     """Plot original points """
     info(inspect.stack()[0][3] + '()')
+    os.makedirs(outdir, exist_ok=True)
     models = np.unique(df.model)
     nvertices = np.unique(df.nvertices)
     nucleiprefs = np.unique(df.nucleipref)
@@ -252,7 +253,7 @@ def plot_parameters_pairwise(df, outdir):
     combs = [['b', 'rmax'], ['cmax', 'rmax'], ['b', 'cmax']]
 
     markers = ['o', 's']
-    colours = ['black', 'blue', 'red']
+    colours = ['green', 'darkorange', 'blue']
 
     dforig = df.copy()
 
@@ -361,12 +362,15 @@ def main():
 
     df = pd.read_csv(args.res)
 
-    # plot_origpoints(df, args.outdir)
+    # plot_origpoints(df, pjoin(args.outdir, 'origpoints'))
     dfparsed = parse_results(df, args.outdir)
-    # plot_means(dfparsed, pjoin(args.outdir, 'plots_r_s'))
+    plot_means(dfparsed, pjoin(args.outdir, 'plots_r_s'))
     dfcoeffs = find_coeffs(dfparsed, pjoin(args.outdir, 'fits'))
     plot_parameters_pairwise(dfcoeffs, pjoin(args.outdir, 'params'))
-    plot_contours(dfcoeffs, pjoin(args.outdir, 'contours'))
+    plot_slices(dfcoeffs, pjoin(args.outdir, 'slices'))
+
+    # For multiple avgdegrees and nvertices
+    # plot_contours(dfcoeffs, pjoin(args.outdir, 'contours'))
     # plot_triangulations(dfcoeffs, pjoin(args.outdir, 'surface_tri'))
 
     info('Elapsed time:{}'.format(time.time()-t0))
