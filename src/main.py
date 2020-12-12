@@ -83,6 +83,7 @@ def weighted_random_sampling(items, weights, return_idx=False):
 
 ##########################################################
 def weighted_random_sampling_n(items, weights, n):
+    """Sample @n items without reposition"""
     item = items.copy(); weights = weights.copy()
     sample = np.zeros(n, dtype=int)
     inds = list(range(len(items)))
@@ -119,15 +120,13 @@ def calculate_modified_clucoeff(g):
     return clucoeffs
 
 ##########################################################
-def add_labels(gorig, n, choice, label):
-    """Add @nresources to the @g.
+def add_labels(g, n, choice, label):
+    """Add @nresources to graph @g.
     We randomly sample the vertices and change their labels"""
     # info(inspect.stack()[0][3] + '()')
-    g = gorig.copy()
     types = np.array(g.vs['type'])
 
-    noneinds = np.where(types == NONE)[0]
-    validinds = noneinds
+    validinds = noneinds = np.where(types == NONE)[0]
 
     if choice == 'un':
         weights = np.ones(len(noneinds), dtype=float)
@@ -149,11 +148,13 @@ def add_labels(gorig, n, choice, label):
         weights = clucoeffs[validinds]
     else: info('Invalid choice!')
 
+    if np.sum(weights > 0) < n: # When I request @n gt. weights length
+        info('Nuclei is gt. available connected nodes!')
+
     sample = weighted_random_sampling_n(validinds, weights, n)
 
     for i in range(n):
-        idx = sample[i]
-        g.vs[idx]['type'] = label
+        g.vs[sample[i]]['type'] = label
     return g, sorted(sample[:n])
 
 ##########################################################
@@ -186,32 +187,44 @@ def run_experiment(params):
     nucleipref = params['nucleipref']
     nucleistep = params['nucleistep']
     niter = params['niter']
-    nucleiratios = np.arange(nucleistep, 1.01, nucleistep) # np.arange(0, 1.01, .05)
+    seed = params['seed']
+    nucleiratios = np.arange(0, 1+nucleistep, nucleistep) # np.arange(0, 1.01, .05)
 
-    info('{},{},{},{}'.format(model, nvertices, avgdegree, nucleipref))
+    info('{},{},{},{},{}'.format(model, nvertices, avgdegree, nucleipref, seed))
+
+    np.random.seed(seed)
+    random.seed(seed)
 
     g = generate_graph(model, nvertices, avgdegree, rewiringprob=.5)
 
     ret = []
     for i in range(niter):
-        ret.extend(run_subexperiment(g, nucleipref, nucleiratios, i))
+        aux = run_subexperiment(g, nucleipref, nucleiratios)
+        ret.extend([ [i] + x for x in aux ])
     return ret
 
 ##########################################################
-def run_subexperiment(gorig, nucleipref, nucleiratios, iter_):
-    """Run a single experiment"""
+def run_subexperiment(gorig, nucleipref, nucleiratios):
+    """Sample nuclei of @nucleiratios proportions in the graph @gorig with
+    preferential location to @nucleipref"""
     # info(inspect.stack()[0][3] + '()')
 
     nvertices = gorig.vcount()
-    ret = [[iter_, 0.0, 0, 1.0]] # c,r,s
+    ret = []
 
     for i, c in enumerate(nucleiratios):
         nnuclei = int(c * nvertices)
+        if nnuclei == 0:
+            ret.append([c, 0.0, 1.0])
+            continue
+        elif nnuclei == nvertices:
+            ret.append([c, 0.0, 0.0])
+            continue
+
         neighs = []
 
         nresources = nvertices - nnuclei
         g = gorig.copy()
-        # g = generate_graph(model, nvertices, avgdegree, rewiringprob)
         g, nuclids = add_labels(g, nnuclei, nucleipref, NUCLEUS)
         g, resoids = add_labels(g, nresources, 'un', RESOURCE)
 
@@ -226,7 +239,7 @@ def run_subexperiment(gorig, nucleipref, nucleiratios, iter_):
 
         r = lenunique / nvertices
         s = lenunique / lenrepeated if lenunique > 0 else 0
-        ret.append([iter_, c, r, s])
+        ret.append([c, r, s])
 
     return ret
 
@@ -235,7 +248,7 @@ def main():
     info(inspect.stack()[0][3] + '()')
     t0 = time.time()
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--seed', default=0, type=int, help='Random seed')
+    parser.add_argument('--nseeds', default=1, type=int, help='Random seed')
     parser.add_argument('--nprocs', default=1, type=int, help='Number of parallel processes')
     parser.add_argument('--outdir', default='/tmp/out/', help='Output directory')
     args = parser.parse_args()
@@ -243,25 +256,22 @@ def main():
     os.makedirs(args.outdir, exist_ok=True)
     readmepath = create_readme(sys.argv, args.outdir)
 
-    np.random.seed(args.seed)
-    random.seed(args.seed)
 
     models = ['ba', 'er', 'gr'] # ['er', 'ba', 'gr']
-    nvertices = [100, 500, 1000] # [100, 500, 1000]
+    nvertices = range(100, 1010, 100) # [100, 500, 1000]
     avgdegrees = np.arange(4, 21) # np.arange(4, 21)
     nucleiprefs = ['un', 'de'] # [UNIFORM, DEGREE]
-    nucleistep = .01
-    niter = 200
+    nucleistep = .1
+    niter = 10
+    nseeds = 10
 
-    append_to_file(readmepath, 'models:{}'.format(models))
-    append_to_file(readmepath, 'nvertices:{}'.format(nvertices))
-    append_to_file(readmepath, 'avgdegrees:{}'.format(avgdegrees))
-    append_to_file(readmepath, 'nucleiprefs:{}'.format(nucleiprefs))
-    append_to_file(readmepath, 'nucleistep:{}'.format(nucleistep))
-    append_to_file(readmepath, 'niter:{}'.format(niter))
+    append_to_file(readmepath, 'models:{}, nvertices:{}, avgdegrees:{}, \
+    nucleiprefs:{}, nucleistep:{}, niter:{}, nseeds:{}' \
+                   .format(models, nvertices, avgdegrees, nucleiprefs,
+                           nucleistep, niter, nseeds))
 
     aux = list(product(models, nvertices, avgdegrees, nucleiprefs, [nucleistep],
-                       [niter])) # Fill here
+                       [niter], list(range(nseeds)))) # Fill here
     params = []
     for i, row in enumerate(aux):
         params.append(dict(model = row[0],
@@ -270,6 +280,7 @@ def main():
                            nucleipref = row[3],
                            nucleistep = row[4],
                            niter = row[5],
+                           seed = row[6],
                            ))
 
     if args.nprocs == 1:
@@ -282,12 +293,13 @@ def main():
 
     res = []
     for p, r in zip(params, ret):
-        beg = [p['model'], p['nvertices'], p['avgdegree'], p['nucleipref']]
-        for rr in r:
-            res.append(beg + rr)
+        beg = [p['model'], p['nvertices'], p['avgdegree'],
+               p['nucleipref'], p['seed']]
+        for rr in r: res.append(beg + rr)
 
     df = pd.DataFrame()
-    cols = ['model', 'nvertices', 'k', 'nucleipref', 'i', 'c', 'r', 's']
+    cols = ['model', 'nvertices', 'avgdegree', 'nucleipref', 'seed',
+            'i', 'c', 'r', 's']
 
     for i, col in enumerate(cols):
         df[col] = [x[i] for x in res]
