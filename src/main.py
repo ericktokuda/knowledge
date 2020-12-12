@@ -44,6 +44,9 @@ def generate_graph(model, nvertices, avgdegree, rewiringprob,
     elif model == 'gr':
         radius = get_rgg_params(nvertices, avgdegree)
         g = igraph.Graph.GRG(nvertices, radius)
+    elif model == 'wi':
+        from myutils import graph
+        g = graph.simplify_graphml('wiki_Phys_Math.graphml', directed=False)
     else:
         msg = 'Please choose a proper topology model'
         raise Exception(msg)
@@ -58,8 +61,6 @@ def generate_graph(model, nvertices, avgdegree, rewiringprob,
             layoutmodel = 'random'
         aux = np.array(g.layout(layoutmodel).coords)
 
-    # from myutils import graph
-    # g = graph.simplify_graphml('/home/frodo/temp/wiki_Phys_Math.graphml', directed=False)
 
     # coords = (aux - np.mean(aux, 0))/np.std(aux, 0) # standardization
     coords = -1 + 2*(aux - np.min(aux, 0))/(np.max(aux, 0)-np.min(aux, 0)) # minmax
@@ -262,13 +263,13 @@ def main():
     readmepath = create_readme(sys.argv, args.outdir)
 
 
-    models = ['ba', 'er', 'gr'] # ['er', 'ba', 'gr']
+    models = ['ba', 'er', 'gr', 'wi'] # ['er', 'ba', 'gr']
     nvertices = range(100, 1010, 100) # [100, 500, 1000]
-    avgdegrees = np.arange(4, 21) # np.arange(4, 21)
+    avgdegrees = [8] # np.arange(4, 21)
     nucleiprefs = ['un', 'de'] # [UNIFORM, DEGREE]
-    nucleistep = .1
-    niter = 10
-    nseeds = 10
+    nucleistep = .01 # 0.01
+    niter = 50 # 50
+    nseeds = 50 # 50
 
     append_to_file(readmepath, 'models:{}, nvertices:{}, avgdegrees:{}, \
     nucleiprefs:{}, nucleistep:{}, niter:{}, nseeds:{}' \
