@@ -47,7 +47,7 @@ def parse_results(df, outdir):
     models = np.unique(df.model)
     nvertices = np.unique(df.nvertices)
     nucleiprefs = np.unique(df.nucleipref)
-    ks = np.unique(df.k)
+    ks = np.unique(df.avgdegree)
     niters = np.unique(df.i)
     cs = np.unique(df.c)
 
@@ -60,7 +60,7 @@ def parse_results(df, outdir):
             for n in nvertices:
                 df3 = df2.loc[df2.nvertices == n]
                 for k in ks:
-                    df4 = df3.loc[df3.k == k]
+                    df4 = df3.loc[df3.avgdegree == k]
                     for c in cs:
                         df5 = df4.loc[df4.c == c]
                         r = df5.r.mean(), df5.r.std()
@@ -160,7 +160,7 @@ def plot_origpoints(df, outdir):
     models = np.unique(df.model)
     nvertices = np.unique(df.nvertices)
     nucleiprefs = np.unique(df.nucleipref)
-    ks = np.unique(df.k)
+    ks = np.unique(df.avgdegree)
     niters = np.unique(df.i)
 
     for nucleipref in nucleiprefs:
@@ -172,7 +172,7 @@ def plot_origpoints(df, outdir):
                         aux = df.loc[(df.nucleipref == nucleipref) & \
                                       (df.model == model) & \
                                       (df.nvertices == n) & \
-                                      (df.k == k) &(df.i == i)]
+                                      (df.avgdegree == k) &(df.i == i)]
                         rs = aux.r.to_numpy()
                         cs = aux.c.to_numpy()
                         f = '{}_{}_{}_{}_{:02d}.png'.format(
@@ -362,9 +362,11 @@ def main():
 
     df = pd.read_csv(args.res)
 
-    # plot_origpoints(df, pjoin(args.outdir, 'origpoints'))
+    plot_origpoints(df, pjoin(args.outdir, 'origpoints'))
     dfparsed = parse_results(df, args.outdir)
     plot_means(dfparsed, pjoin(args.outdir, 'plots_r_s'))
+    breakpoint()
+    
     dfcoeffs = find_coeffs(dfparsed, pjoin(args.outdir, 'fits'))
     plot_parameters_pairwise(dfcoeffs, pjoin(args.outdir, 'params'))
     plot_slices(dfcoeffs, pjoin(args.outdir, 'slices'))
