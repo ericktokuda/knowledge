@@ -57,6 +57,10 @@ def generate_graph(model, nvertices, avgdegree, rewiringprob,
         else:
             layoutmodel = 'random'
         aux = np.array(g.layout(layoutmodel).coords)
+
+    # from myutils import graph
+    # g = graph.simplify_graphml('/home/frodo/temp/wiki_Phys_Math.graphml', directed=False)
+
     # coords = (aux - np.mean(aux, 0))/np.std(aux, 0) # standardization
     coords = -1 + 2*(aux - np.min(aux, 0))/(np.max(aux, 0)-np.min(aux, 0)) # minmax
     g.vs['type'] = NONE
@@ -151,7 +155,8 @@ def add_labels(g, n, choice, label):
     if np.sum(weights > 0) < n: # When I request @n gt. weights length
         info('Nuclei is gt. available connected nodes!')
 
-    sample = weighted_random_sampling_n(validinds, weights, n)
+    sample = np.random.choice(validinds, size=n, replace=False,
+                              p=weights/np.sum(weights))
 
     for i in range(n):
         g.vs[sample[i]]['type'] = label
