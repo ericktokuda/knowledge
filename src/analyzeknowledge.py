@@ -91,7 +91,8 @@ def find_coeffs(df, outdir):
         info('Loading existing aggregated results:{}'.format(aggregpath))
         return pd.read_csv(aggregpath)
 
-    outdir = pjoin(args.outdir, 'fits')
+    outdir = pjoin(outdir, 'fits')
+    os.makedirs(outdir, exist_ok=True)
 
     models = np.unique(df.model)
     nvertices = np.unique(df.nvertices)
@@ -132,7 +133,7 @@ def find_coeffs(df, outdir):
 
                         outpath = pjoin(outdir, '{}_{}_{}_{}_{}.png'.format(
                             nucleipref, model, n, k, seed))
-                        scatter_c_vs_r(xs, ys, outpath, func=func, params=params)
+                        scatter_c_vs_r(xs, ys, outpath, func=FUNC, params=params)
 
                         data.append([nucleipref, model, n, k, seed, cmax, rmax, *params])
 
@@ -260,29 +261,33 @@ def plot_slices(df, outdir):
     # xx, yy = np.mgrid[nvertices, 0:1:0.05]
     models = np.unique(df.model)
     nucleiprefs = np.unique(df.nucleipref)
+    seeds = np.unique(df.seed)
 
     # nucleipref = 'de'
 
     params = ['cmax', 'a', 'b', 'rmax']
-    
-
-    breakpoint()
     
     for nucleipref in nucleiprefs:
         filtered = df.loc[(df.nucleipref == nucleipref)]
         for param in params:
             f, ax = plt.subplots()
             for model in models:
-                # z = filtered.loc[(filtered.model == model) & (filtered.nvertices == 500)][param].to_numpy()
-                z = filtered.loc[(filtered.model == model) & (filtered.avgdegree == 1)][param].to_numpy()
-                ax.plot(np.unique(df.nvertices), z, label=model)
+                data = []
+                for seed in seeds:
+                    # z = filtered.loc[(filtered.model == model) & (filtered.avgdegree == 8)][param].to_numpy()
+                    aux = filtered.loc[(filtered.model == model) & (filtered.avgdegree == 8) & (filtered.seed == seed)][param].to_numpy()
+                    data.append(aux)
+                    
+                data = np.array(data)
+                ax.errorbar(np.unique(df.nvertices), np.mean(data, axis=0),
+                        yerr=np.std(data, axis=0), label=model)
 
-            # ax.set_xlabel('avgdegree')
+                # ax.set_xlabel('avgdegree')
             ax.set_xlabel('nvertices')
             ax.set_ylabel(param)
             plt.legend()
-            plt.savefig(pjoin(outdir, '{}_{}_{}.png'.format(nucleipref,
-                                                            param, model)))
+            plt.savefig(pjoin(outdir, '{}_{}_{}_{}.png'.format(nucleipref,
+                                                            param, model, seed)))
             plt.close()
 
 ##########################################################
@@ -411,15 +416,14 @@ def main():
 
     df = pd.read_csv(args.res)
 
-    # plot_origpoints(df, pjoin(args.outdir, 'origpoints'))
+    plot_origpoints(df, pjoin(args.outdir, 'origpoints'))
     dfparsed = parse_results(df, args.outdir)
-    # plot_means(dfparsed, pjoin(args.outdir, 'plots_r_s'))
+    plot_means(dfparsed, pjoin(args.outdir, 'plots_r_s'))
     
     dfcoeffs = find_coeffs(dfparsed, args.outdir)
-    # plot_fits(dfcoeffs, pjoin(args.outdir, 'fits'))
+    plot_fits(dfcoeffs, pjoin(args.outdir, 'fits'))
     plot_parameters_pairwise(dfcoeffs, pjoin(args.outdir, 'params'))
     plot_slices(dfcoeffs, pjoin(args.outdir, 'slices'))
-    return 
 
     # For multiple avgdegrees and nvertices
     plot_contours(dfcoeffs, pjoin(args.outdir, 'contours'))
