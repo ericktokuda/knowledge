@@ -32,7 +32,7 @@ def get_unique_vals(df):
     return un
 
 ##########################################################
-def plot_origpoints(df, un, outdir):
+def plot_origpoints(df, un, outdir, sample):
     """Plot original points """
     info(inspect.stack()[0][3] + '()')
     os.makedirs(outdir, exist_ok=True)
@@ -45,14 +45,16 @@ def plot_origpoints(df, un, outdir):
                 df3 = df2.loc[df2.nvertices == n]
                 for k in un['avgdegree']:
                     df4 = df3.loc[df3.avgdegree == k]
-                    for i in un['i']:
-                        aux = df4.loc[df4.i == i]
-                        rs = aux.r.to_numpy()
-                        cs = aux.c.to_numpy()
-                        f = '{}_{}_{}_{}_{:02d}.png'.format(
-                            nucleipref, model, n, k, i)
-                        outpath = pjoin(outdir, f)
-                        scatter_c_vs_r(cs, rs, outpath)
+                    for seed in un['seed'][:sample]:
+                        df5 = df4.loc[df4.seed == seed]
+                        for i in un['i'][:sample]:
+                            aux = df5.loc[df5.i == i]
+                            rs = aux.r.to_numpy()
+                            cs = aux.c.to_numpy()
+                            f = '{}_{}_{}_{}_{:02d}_{:02d}.png'.format(
+                                nucleipref, model, n, k, seed, i)
+                            outpath = pjoin(outdir, f)
+                            scatter_c_vs_r(cs, rs, outpath)
 
 #############################################################
 def plot_surface(f, x, y, xx, yy, outdir):
@@ -207,35 +209,44 @@ def plot_contours(df, outdir):
                 plt.close()
 
 ##########################################################
-def plot_slices(df, un, outdir):
+def plot_slice(dforig, un, fixed, fixedparam, outdir):
     """Short description """
     info(inspect.stack()[0][3] + '()')
     os.makedirs(outdir, exist_ok=True)
 
+    df = dforig.loc[dforig[fixed] == fixedparam]
+    varying = 'avgdegree' if fixed == 'nvertices' else 'nvertices'
+
     params = ['cmax', 'a', 'b', 'rmax']
-    
-    for nucleipref in un['nucleipref']:
-        df1 = df.loc[df.nucleipref == nucleipref]
-        for param in params:
-            fig, ax = plt.subplots()
+
+    figscale = 4
+    ncols = len(un['nucleipref'])
+
+    for param in params:
+        fig, axs = plt.subplots(1, ncols,
+                    figsize=(ncols*figscale, 1*figscale))
+        for j, nucleipref in enumerate(un['nucleipref']):
+            df1 = df.loc[(df.nucleipref == nucleipref)]
             for model in un['model']:
                 df2 = df1.loc[df1.model == model]
                 data = []
                 for seed in un['seed']:
                     df3 = df2.loc[df2.seed == seed]
                     data.append(df3[param].to_numpy())
-                    
+
                 data = np.array(data)
-                ax.errorbar(np.unique(df.nvertices), np.mean(data, axis=0),
+                axs[j].errorbar(np.unique(df[varying]), np.mean(data, axis=0),
                         yerr=np.std(data, axis=0), label=model)
 
-                # ax.set_xlabel('avgdegree')
-            ax.set_xlabel('nvertices')
-            ax.set_ylabel(param)
-            plt.legend()
-            plt.savefig(pjoin(outdir, '{}_{}_{}_{}.png'.format(nucleipref,
-                                                            param, model, seed)))
-            plt.close()
+            axs[j].set_xlabel(varying)
+            axs[j].set_ylabel(param)
+            axs[j].set_title(nucleipref)
+
+        plt.legend(loc='upper right')
+        plotpath = pjoin(outdir, '{}_{}.png'.format(param, model))
+        plt.tight_layout()
+        plt.savefig(plotpath)
+        plt.close()
 
 ##########################################################
 def plot_parameters_pairwise(df, un, outdir):
@@ -306,7 +317,7 @@ def plot_triangulations(df, outdir):
                 plt.close()
 
 ##########################################################
-def plot_r_s(df, un, outdir):
+def plot_r_s(df, un, outdir, sample):
     """Plot r and s means for each city"""
     info(inspect.stack()[0][3] + '()')
 
@@ -322,7 +333,7 @@ def plot_r_s(df, un, outdir):
                 df3 = df2.loc[df2.nvertices == n]
                 for k in un['avgdegree']:
                     df4 = df3.loc[df3.avgdegree == k]
-                    for seed in un['seed']:
+                    for seed in un['seed'][:sample]:
                         df5 = df4.loc[df4.seed == seed]
                         fig, ax = plt.subplots(1, 2, figsize=(W*.01, H*.01),
                                 dpi=100)
@@ -353,14 +364,18 @@ def main():
     readmepath = create_readme(sys.argv, args.outdir)
 
     df = pd.read_csv(args.res)
+
+    # df = df.loc[df.nvertices != 10000]
+
     un = get_unique_vals(df)
-    plot_origpoints(df, un, pjoin(args.outdir, 'origpoints'))
+    plot_origpoints(df, un, pjoin(args.outdir, 'origpoints'), 1)
     dfparsed = parse_results(df, un, args.outdir)
-    plot_r_s(dfparsed, un, pjoin(args.outdir, 'plots_r_s'))
-    
+    plot_r_s(dfparsed, un, pjoin(args.outdir, 'plots_r_s'), 1)
+
     dfcoeffs = find_coeffs(dfparsed, un, args.outdir)
     plot_parameters_pairwise(dfcoeffs, un, pjoin(args.outdir, 'params'))
-    plot_slices(dfcoeffs, un, pjoin(args.outdir, 'slices'))
+    plot_slice(dfcoeffs, un, 'avgdegree', 8, pjoin(args.outdir, 'slicek8'))
+    plot_slice(dfcoeffs, un, 'nvertices', 300, pjoin(args.outdir, 'slicen300'))
 
     # For multiple avgdegrees and nvertices
     # plot_contours(dfcoeffs, pjoin(args.outdir, 'contours'))
