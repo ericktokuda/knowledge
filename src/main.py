@@ -154,7 +154,8 @@ def add_labels(g, n, choice, label):
     else: info('Invalid choice!')
 
     if np.sum(weights > 0) < n: # When I request @n gt. weights length
-        info('Nuclei is gt. available connected nodes!')
+        info('Nnuclei is gt. nconnected nodes!')
+        return g, []
 
     sample = np.random.choice(validinds, size=n, replace=False,
                               p=weights/np.sum(weights))
@@ -194,7 +195,7 @@ def run_experiment(params):
     nucleistep = params['nucleistep']
     niter = params['niter']
     seed = params['seed']
-    nucleiratios = np.arange(0, 1+nucleistep, nucleistep) # np.arange(0, 1.01, .05)
+    nucleiratios = np.arange(0, .95, nucleistep) # np.arange(0, 1.01, .05)
 
     info('{},{},{},{},{}'.format(model, nvertices, avgdegree, nucleipref, seed))
 
@@ -205,12 +206,11 @@ def run_experiment(params):
 
     ret = []
     for i in range(niter):
-        aux = run_subexperiment(g, nucleipref, nucleiratios)
-        ret.extend([ [i] + x for x in aux ])
+        ret.extend(run_subexperiment(g, nucleipref, nucleiratios, i))
     return ret
 
 ##########################################################
-def run_subexperiment(gorig, nucleipref, nucleiratios):
+def run_subexperiment(gorig, nucleipref, nucleiratios, expid):
     """Sample nuclei of @nucleiratios proportions in the graph @gorig with
     preferential location to @nucleipref"""
     # info(inspect.stack()[0][3] + '()')
@@ -221,10 +221,10 @@ def run_subexperiment(gorig, nucleipref, nucleiratios):
     for i, c in enumerate(nucleiratios):
         nnuclei = int(c * nvertices)
         if nnuclei == 0:
-            ret.append([c, 0.0, 1.0])
+            ret.append([expid, c, 0.0, 1.0])
             continue
         elif nnuclei == nvertices:
-            ret.append([c, 0.0, 0.0])
+            ret.append([expid, c, 0.0, 0.0])
             continue
 
         neighs = []
@@ -233,6 +233,9 @@ def run_subexperiment(gorig, nucleipref, nucleiratios):
         g = gorig.copy()
         g, nuclids = add_labels(g, nnuclei, nucleipref, NUCLEUS)
         g, resoids = add_labels(g, nresources, 'un', RESOURCE)
+
+        if nuclids == [] or resoids == []: # Error when choosing them
+            continue
 
         for nucl in nuclids:
             neighids = np.array(g.neighbors(nucl))
@@ -245,7 +248,7 @@ def run_subexperiment(gorig, nucleipref, nucleiratios):
 
         r = lenunique / nvertices
         s = lenunique / lenrepeated if lenunique > 0 else 0
-        ret.append([c, r, s])
+        ret.append([expid, c, r, s])
 
     return ret
 
@@ -261,7 +264,6 @@ def main():
 
     os.makedirs(args.outdir, exist_ok=True)
     readmepath = create_readme(sys.argv, args.outdir)
-
 
     models = ['ba', 'er', 'gr', 'wi'] # ['er', 'ba', 'gr']
     nvertices = range(100, 1010, 100) # [100, 500, 1000]
