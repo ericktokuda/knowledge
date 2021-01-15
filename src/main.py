@@ -195,28 +195,40 @@ def run_experiment(params):
     nucleistep = params['nucleistep']
     niter = params['niter']
     seed = params['seed']
+    decayparam1 = params['decayparam1']
+    decayparam2 = params['decayparam2']
     nucleiratios = np.arange(0, .95, nucleistep) # np.arange(0, 1.01, .05)
 
-    info('{},{},{},{},{}'.format(model, nvertices, avgdegree, nucleipref, seed))
+    info('{},{},{},{},{},{},{}'.format(model, nvertices, avgdegree, nucleipref,
+                                 seed, decayparam1, decayparam2))
 
     np.random.seed(seed)
     random.seed(seed)
 
     g = generate_graph(model, nvertices, avgdegree, rewiringprob=.5)
+    lens = np.array(g.shortest_paths())
+
+    f = lambda x: param1 * np.exp(- x * param2) # prob. based on top. distance
 
     ret = []
     for i in range(niter):
-        ret.extend(run_subexperiment(g, nucleipref, nucleiratios, i))
+        ret.extend(run_subexperiment(g, nucleipref, nucleiratios, i, f, lens))
     return ret
 
 ##########################################################
-def run_subexperiment(gorig, nucleipref, nucleiratios, expid):
+def run_subexperiment(gorig, nucleipref, nucleiratios, expid, f, lens):
     """Sample nuclei of @nucleiratios proportions in the graph @gorig with
     preferential location to @nucleipref"""
     # info(inspect.stack()[0][3] + '()')
 
     nvertices = gorig.vcount()
     ret = []
+
+    ret.append([expid, 0.0, 0.0, 1.0]) # c = 0
+
+    # types = np.array(gorig.vs['type'])
+    first = np.random.randint(gorig.vcount())
+    gorig.vs[first]['type'] = NUCLEUS
 
     for i, c in enumerate(nucleiratios):
         nnuclei = int(c * nvertices)
@@ -250,6 +262,7 @@ def run_subexperiment(gorig, nucleipref, nucleiratios, expid):
         s = lenunique / lenrepeated if lenunique > 0 else 0
         ret.append([expid, c, r, s])
 
+    ret.append([expid, 0.0, 0.0, 0.0])
     return ret
 
 ##########################################################
@@ -272,14 +285,19 @@ def main():
     nucleistep = .01 # 0.01
     niter = 50 # 50
     nseeds = 50 # 50
+    decayparam1 = 1
+    decayparam2 = 0.5
 
-    append_to_file(readmepath, 'models:{}, nvertices:{}, avgdegrees:{}, \
-    nucleiprefs:{}, nucleistep:{}, niter:{}, nseeds:{}' \
+    append_to_file(readmepath, 'models:{}, nvertices:{}, avgdegrees:{},' \
+                   'nucleiprefs:{}, nucleistep:{}, niter:{}, nseeds:{},' \
+                   'decayparam1:{}, decayparam2:{}' \
                    .format(models, nvertices, avgdegrees, nucleiprefs,
-                           nucleistep, niter, nseeds))
+                           nucleistep, niter, nseeds, decayparam1,
+                           decayparam2))
 
     aux = list(product(models, nvertices, avgdegrees, nucleiprefs, [nucleistep],
-                       [niter], list(range(nseeds)))) # Fill here
+                       [niter], list(range(nseeds)), [decayparam1],
+                       [decayparam2])) # Fill here
     params = []
     for i, row in enumerate(aux):
         params.append(dict(model = row[0],
@@ -289,6 +307,8 @@ def main():
                            nucleistep = row[4],
                            niter = row[5],
                            seed = row[6],
+                           decayparam1 = row[7],
+                           decayparam2 = row[8],
                            ))
 
     if args.nprocs == 1:
