@@ -204,6 +204,7 @@ def run_experiment(params):
     random.seed(seed)
 
     g = generate_graph(model, nvertices, avgdegree, rewiringprob=.5)
+    g = g.components(mode='weak').giant() # the largest component
     lens = np.array(g.shortest_paths())
 
     probfunc = lambda x: decayparam1 * np.exp(- x * decayparam2) # prob. based on top. distance
@@ -222,7 +223,7 @@ def run_subexperiment(gorig, nucleipref, expid, probfunc, lens):
     nvertices = gorig.vcount()
     ret = []
 
-    ret.append([expid, 0.0, 0.0, 1.0]) # c = 0
+    ret.append([expid, nvertices, 0.0, 0.0, 1.0]) # c = 0
 
     g = gorig.copy()
     g.vs['type'] = [RESOURCE] * nvertices
@@ -257,11 +258,12 @@ def run_subexperiment(gorig, nucleipref, expid, probfunc, lens):
         r = lenunique / nvertices
         s = lenunique / lenrepeated if lenunique > 0 else 0
         c = len(nuclids) / nvertices
-        ret.append([expid, c, r, s])
+        ret.append([expid, nvertices, c, r, s])
 
         if len(nuclids) > maxnuclei: break #2nd stop condition
 
-    ret.append([expid, 0.0, 0.0, 0.0])
+    # info('nsteps:{}'.format(i))
+    ret.append([expid, nvertices, 0.0, 0.0, 0.0])
     return ret
 
 ##########################################################
@@ -277,10 +279,10 @@ def main():
     os.makedirs(args.outdir, exist_ok=True)
     readmepath = create_readme(sys.argv, args.outdir)
 
-    models = ['ba', 'er', 'gr', 'wi'] # ['er', 'ba', 'gr']
+    models = ['ba', 'er', 'gr'] # ['er', 'ba', 'gr']
     nvertices = range(100, 1010, 100) # [100, 500, 1000]
     avgdegrees = [8] # np.arange(4, 21)
-    nucleiprefs = ['un', 'de'] # [UNIFORM, DEGREE]
+    nucleiprefs = ['dist'] # [UNIFORM, DEGREE]
     niter = 50 # 50
     nseeds = 50 # 50
     decayparam1 = 1
@@ -323,8 +325,8 @@ def main():
         for rr in r: res.append(beg + rr)
 
     df = pd.DataFrame()
-    cols = ['model', 'nvertices', 'avgdegree', 'nucleipref', 'seed',
-            'i', 'c', 'r', 's']
+    cols = ['model', 'nverticesfull', 'avgdegree', 'nucleipref', 'seed',
+            'i', 'nverticescomp', 'c', 'r', 's']
 
     for i, col in enumerate(cols):
         df[col] = [x[i] for x in res]
