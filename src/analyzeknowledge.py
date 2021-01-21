@@ -41,8 +41,8 @@ def plot_origpoints(df, un, outdir, sample):
         df1 = df.loc[df.nucleipref == nucleipref]
         for model in un['model']:
             df2 = df1.loc[df1.model == model]
-            for n in un['nvertices']:
-                df3 = df2.loc[df2.nvertices == n]
+            for n in un['nverticescomp']:
+                df3 = df2.loc[df2.nverticescomp == n]
                 for k in un['avgdegree']:
                     df4 = df3.loc[df3.avgdegree == k]
                     for seed in un['seed'][:sample]:
@@ -88,8 +88,8 @@ def parse_results(df, un, outdir):
         df1 = df.loc[df.nucleipref == nucleipref]
         for model in un['model']:
             df2 = df1.loc[df1.model == model]
-            for n in un['nvertices']:
-                df3 = df2.loc[df2.nvertices == n]
+            for n in un['nverticescomp']:
+                df3 = df2.loc[df2.nverticescomp == n]
                 for k in un['avgdegree']:
                     df4 = df3.loc[df3.avgdegree == k]
                     for seed in un['seed']:
@@ -101,7 +101,7 @@ def parse_results(df, un, outdir):
                             data.append([nucleipref, model, n, k, seed, c,
                                 *r, *s])
 
-    cols = 'nucleipref,model,nvertices,avgdegree,seed,c,' \
+    cols = 'nucleipref,model,nverticescomp,avgdegree,seed,c,' \
         'rmean,rstd,smean,sstd'.split(',')
     dffinal = pd.DataFrame(data, columns=cols)
     dffinal.to_csv(parsedpath, index=False)
@@ -126,8 +126,8 @@ def find_coeffs(df, un, outdir):
         df1 = df.loc[df.nucleipref == nucleipref]
         for model in un['model']:
             df2 = df1.loc[df1.model == model]
-            for n in un['nvertices']:
-                df3 = df2.loc[df2.nvertices == n]
+            for n in un['nverticescomp']:
+                df3 = df2.loc[df2.nverticescomp == n]
                 for k in un['avgdegree']:
                     df4 = df3.loc[df3.avgdegree == k]
                     for seed in un['seed']:
@@ -156,7 +156,7 @@ def find_coeffs(df, un, outdir):
 
                         data.append([nucleipref, model, n, k, seed, cmax, rmax, *params])
 
-    cols = 'nucleipref,model,nvertices,avgdegree,seed,cmax,rmax,a,b'.split(',')
+    cols = 'nucleipref,model,nverticescomp,avgdegree,seed,cmax,rmax,a,b'.split(',')
     dffinal = pd.DataFrame(data, columns=cols)
     dffinal.to_csv(aggregpath, index=False)
     return dffinal
@@ -184,7 +184,7 @@ def plot_contours(df, outdir):
     """Short description """
     info(inspect.stack()[0][3] + '()')
     os.makedirs(outdir, exist_ok=True)
-    # xx, yy = np.mgrid[nvertices, 0:1:0.05]
+    # xx, yy = np.mgrid[nverticescomp, 0:1:0.05]
     models = np.unique(df.model)
     nucleiprefs = np.unique(df.nucleipref)
 
@@ -196,7 +196,7 @@ def plot_contours(df, outdir):
     for nucleipref in nucleiprefs:
         filtered = df.loc[(df.nucleipref == nucleipref)]
         for model in models:
-            x = filtered.loc[(filtered.model == model)].nvertices.to_numpy()
+            x = filtered.loc[(filtered.model == model)].nverticescomp.to_numpy()
             y = filtered.loc[(filtered.model == model)].avgdegree.to_numpy()
             for param in params:
                 z = filtered.loc[(filtered.model == model)][param].to_numpy()
@@ -215,7 +215,7 @@ def plot_slice(dforig, un, fixed, fixedparam, outdir):
     os.makedirs(outdir, exist_ok=True)
 
     df = dforig.loc[dforig[fixed] == fixedparam]
-    varying = 'avgdegree' if fixed == 'nvertices' else 'nvertices'
+    varying = 'avgdegree' if fixed == 'nverticescomp' else 'nverticescomp'
 
     params = ['cmax', 'a', 'b', 'rmax']
 
@@ -254,7 +254,7 @@ def plot_parameters_pairwise(df, un, outdir):
     info(inspect.stack()[0][3] + '()')
     os.makedirs(outdir, exist_ok=True)
 
-    L = 16
+    L = 8
     combs = [['b', 'rmax'], ['cmax', 'rmax'], ['b', 'cmax']]
 
     markers = ['o', 's']
@@ -272,7 +272,10 @@ def plot_parameters_pairwise(df, un, outdir):
                 colour = colours[j]
                 plt.scatter(np.abs(df[df.model == model][param1]),
                             df[df.model == model][param2],
-                            label=model, s=df[df.model == model].nvertices/4,
+                            label='{} {}'.format(nucleipref, model),
+                            s=np.log(df[df.model == model].nverticescomp),
+                            # label=model, s=300,
+                            alpha=.7,
                             marker=marker, c=colour)
         plt.legend()
         ax.set_xlabel(param1)
@@ -286,7 +289,7 @@ def plot_triangulations(df, outdir):
     """Short description """
     info(inspect.stack()[0][3] + '()')
     os.makedirs(outdir, exist_ok=True)
-    # xx, yy = np.mgrid[nvertices, 0:1:0.05]
+    # xx, yy = np.mgrid[nverticescomp, 0:1:0.05]
     models = np.unique(df.model)
     nucleiprefs = np.unique(df.nucleipref)
 
@@ -297,14 +300,14 @@ def plot_triangulations(df, outdir):
 
     for nucleipref in nucleiprefs:
         for model in models:
-            x = filtered.loc[(filtered.model == model)].nvertices.to_numpy()
+            x = filtered.loc[(filtered.model == model)].nverticescomp.to_numpy()
             y = filtered.loc[(filtered.model == model)].avgdegree.to_numpy()
             for param in params:
                 z = filtered.loc[(filtered.model == model)][param].to_numpy()
 
                 fig = plt.figure()
                 ax = Axes3D(fig)
-                ax.set_xlabel('nvertices')
+                ax.set_xlabel('nverticescomp')
                 ax.set_ylabel('avgdegree')
 
                 ax.set_zlabel(param)
@@ -317,7 +320,7 @@ def plot_triangulations(df, outdir):
                 plt.close()
 
 ##########################################################
-def plot_r_s(df, un, outdir, sample):
+def plot_r_s(dforig, un, outdir, sample):
     """Plot r and s means for each city"""
     info(inspect.stack()[0][3] + '()')
 
@@ -325,29 +328,46 @@ def plot_r_s(df, un, outdir, sample):
 
     W = 640*2; H = 480
 
-    for nucleipref in un['nucleipref']:
-        df1 = df.loc[df.nucleipref == nucleipref]
-        for model in un['model']:
-            df2 = df1.loc[df1.model == model]
-            for n in un['nvertices']:
-                df3 = df2.loc[df2.nvertices == n]
-                for k in un['avgdegree']:
-                    df4 = df3.loc[df3.avgdegree == k]
-                    for seed in un['seed'][:sample]:
-                        df5 = df4.loc[df4.seed == seed]
-                        fig, ax = plt.subplots(1, 2, figsize=(W*.01, H*.01),
+    df = dforig.copy()
+    del df['nverticesfull']
+    aux = df.groupby(['model', 'avgdegree', 'nucleipref',
+                      'seed', 'nverticescomp', 'c'])
+    means = aux.mean()
+    stds = aux.std()
+    allrows = np.array(list(means.index)).astype(str)
+
+    # assuming the order of the indices are: (model, k, nucleipref, seed, n, c)
+    for model in np.unique(allrows[:, 0]):
+        rows1 = allrows[np.where(allrows[:, 0] == model)[0], :]
+        for k in np.unique(rows1[:, 1]):
+            rows2 = rows1[np.where(rows1[:, 1] == str(k))[0], :]
+            for nucleipref in np.unique(rows2[:, 2]):
+                rows3 = rows2[np.where(rows2[:, 2] == str(nucleipref))[0], :]
+                for seed in np.unique(rows3[:, 3]):
+                    rows4 = rows3[np.where(rows3[:, 3] == str(seed))[0], :]
+                    for n in np.unique(rows4[:, 4]):
+                        rows5 = rows4[np.where(rows4[:, 4] == str(n))[0], :]
+                        cs = [float(c) for c in np.unique(rows5[:, 5])]
+                        ms = []; ss = []
+                        for c in cs:
+                            ms.append(means.loc[model, int(k), nucleipref,
+                                          int(seed), int(n), c].r)
+                            ss.append(stds.loc[model, int(k), nucleipref,
+                                          int(seed), int(n), c].r)
+
+                        fig, ax = plt.subplots(1, 1, figsize=(W*.01, H*.01),
                                 dpi=100)
 
-                        ax[0].errorbar(un['c'], df5.rmean, yerr=df5.rstd)
-                        ax[0].set_xlabel('c'); ax[0].set_ylabel('r')
-                        ax[0].set_xlim(0, 1); ax[0].set_ylim(0, 1)
+                        ax.errorbar(cs, ms, yerr=ss)
+                        ax.set_xlabel('c'); ax.set_ylabel('r')
+                        ax.set_xlim(0, 1); ax.set_ylim(0, 1)
 
-                        ax[1].errorbar(un['c'], df5.smean, yerr=df5.sstd)
-                        ax[1].set_xlim(0, 1); ax[1].set_ylim(0, 1)
-                        ax[1].set_xlabel('c'); ax[1].set_ylabel('s')
+                        # ax[1].errorbar(un['c'], df5.smean, yerr=df5.sstd)
+                        # ax[1].set_xlim(0, 1); ax[1].set_ylim(0, 1)
+                        # ax[1].set_xlabel('c'); ax[1].set_ylabel('s')
 
                         outpath = pjoin(outdir, '{}_{}_{}_{}_{}.png'.format(
-                            nucleipref, model, n, k, seed))
+                            model, k, nucleipref, seed, n))
                         plt.savefig(outpath)
                         plt.close()
 
@@ -365,19 +385,23 @@ def main():
 
     df = pd.read_csv(args.res)
 
-    # df = df.loc[df.nvertices != 10000]
+    # df = df.loc[df.nverticescomp != 10000]
 
     un = get_unique_vals(df)
-    plot_origpoints(df, un, pjoin(args.outdir, 'origpoints'), 1)
-    dfparsed = parse_results(df, un, args.outdir)
-    plot_r_s(dfparsed, un, pjoin(args.outdir, 'plots_r_s'), 1)
+    # plot_origpoints(df, un, pjoin(args.outdir, 'origpoints'), 1)
+    # dfparsed = parse_results(df, un, args.outdir)
+    # plot_r_s(dfparsed, un, pjoin(args.outdir, 'plots_r_s'), 1)
+    plot_r_s(df, un, pjoin(args.outdir, 'plots_r_s'), 1)
+    breakpoint()
+
 
     dfcoeffs = find_coeffs(dfparsed, un, args.outdir)
     plot_parameters_pairwise(dfcoeffs, un, pjoin(args.outdir, 'params'))
     plot_slice(dfcoeffs, un, 'avgdegree', 8, pjoin(args.outdir, 'slicek8'))
-    plot_slice(dfcoeffs, un, 'nvertices', 300, pjoin(args.outdir, 'slicen300'))
+    return
+    # plot_slice(dfcoeffs, un, 'nverticescomp', 300, pjoin(args.outdir, 'slicen300'))
 
-    # For multiple avgdegrees and nvertices
+    # For multiple avgdegrees and nverticescomp
     # plot_contours(dfcoeffs, pjoin(args.outdir, 'contours'))
     # plot_triangulations(dfcoeffs, pjoin(args.outdir, 'surface_tri'))
 

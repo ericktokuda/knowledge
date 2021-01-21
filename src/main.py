@@ -239,7 +239,8 @@ def run_subexperiment(gorig, nucleipref, expid, probfunc, lens):
         dists = lens[newnode][nuclids]
         mindist = np.min(dists)
 
-        if np.random.rand() > probfunc(mindist): continue
+        if nucleipref == 'dist' and np.random.rand() > probfunc(mindist):
+            continue
 
         g.vs[newnode]['type'] = NUCLEUS
         nuclids = np.where(np.array(g.vs['type']) == NUCLEUS)[0]
@@ -282,7 +283,7 @@ def main():
     models = ['ba', 'er', 'gr'] # ['er', 'ba', 'gr']
     nvertices = range(100, 1010, 100) # [100, 500, 1000]
     avgdegrees = [8] # np.arange(4, 21)
-    nucleiprefs = ['dist'] # [UNIFORM, DEGREE]
+    nucleiprefs = ['un', 'dist'] # [UNIFORM, DEGREE]
     niter = 50 # 50
     nseeds = 50 # 50
     decayparam1 = 1
