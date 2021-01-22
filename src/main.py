@@ -233,14 +233,27 @@ def run_subexperiment(gorig, nucleipref, expid, probfunc, lens):
     nuclids = np.where(np.array(g.vs['type']) == NUCLEUS)[0]
     resoids = np.where(np.array(g.vs['type']) == RESOURCE)[0]
 
-    maxruns = 1000
-    for i in range(maxruns): #1st stop condition
-        newnode = np.random.choice(resoids)
-        dists = lens[newnode][nuclids]
-        mindist = np.min(dists)
+    degrees = np.array(g.degree())
+    betvs = np.array(g.betweenness())
+    eps = .01
+    betvs[np.where(betvs == 0)] = eps
 
-        if nucleipref == 'dist' and np.random.rand() > probfunc(mindist):
-            continue
+    maxruns = 1500
+    for i in range(maxruns): #1st stop condition
+        if nucleipref == 'betv':
+            probs = betvs[resoids]/np.sum(betvs[resoids])
+            newnode = np.random.choice(resoids, p=probs)
+        elif nucleipref == 'degr':
+            probs = degrees[resoids]/np.sum(degrees[resoids])
+            newnode = np.random.choice(resoids, p=probs)
+        elif nucleipref == 'dist':
+            newnode = np.random.choice(resoids)
+            dists = lens[newnode][nuclids]
+            mindist = np.min(dists)
+            if np.random.rand() > probfunc(mindist):
+                continue
+        elif nucleipref == 'unif':
+            newnode = np.random.choice(resoids)
 
         g.vs[newnode]['type'] = NUCLEUS
         nuclids = np.where(np.array(g.vs['type']) == NUCLEUS)[0]
@@ -280,11 +293,11 @@ def main():
     os.makedirs(args.outdir, exist_ok=True)
     readmepath = create_readme(sys.argv, args.outdir)
 
-    models = ['ba', 'er', 'gr'] # ['er', 'ba', 'gr']
-    nvertices = range(100, 1010, 100) # [100, 500, 1000]
+    models = ['ba', 'er', 'gr'] # ['ba', 'er', 'gr']
+    nvertices = [100, 300, 500, 700] # [100, 300, 500, 700]
     avgdegrees = [8] # np.arange(4, 21)
-    nucleiprefs = ['un', 'dist'] # [UNIFORM, DEGREE]
-    niter = 50 # 50
+    nucleiprefs = ['betv']
+    niter = 40 # 50
     nseeds = 50 # 50
     decayparam1 = 1
     decayparam2 = 0.5
