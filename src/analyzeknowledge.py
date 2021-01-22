@@ -108,7 +108,7 @@ def parse_results(df, un, outdir):
     return dffinal
 
 ##########################################################
-def find_coeffs(df, un, outdir):
+def find_coeffs(dforig, outdir):
     """Parse results from simulation"""
     info(inspect.stack()[0][3] + '()')
 
@@ -121,30 +121,41 @@ def find_coeffs(df, un, outdir):
     outdir = pjoin(outdir, 'fits')
     os.makedirs(outdir, exist_ok=True)
 
+    df = dforig.copy()
+    del df['nverticesfull']
+    aux = df.groupby(['model', 'avgdegree', 'nucleipref',
+                      'seed', 'nverticescomp', 'c'])
+    means = aux.mean()
+    allrows = np.array(list(means.index)).astype(str)
+
     data = []
-    for nucleipref in un['nucleipref']:
-        df1 = df.loc[df.nucleipref == nucleipref]
-        for model in un['model']:
-            df2 = df1.loc[df1.model == model]
-            for n in un['nverticescomp']:
-                df3 = df2.loc[df2.nverticescomp == n]
-                for k in un['avgdegree']:
-                    df4 = df3.loc[df3.avgdegree == k]
-                    for seed in un['seed']:
-                        df5 = df4.loc[df4.seed == seed]
-                        idxmax = np.argmax(df5.rmean.to_numpy())
-                        aux = df5.iloc[:idxmax + 1]
+    # assuming the order of the indices are: (model, k, nucleipref, seed, n, c)
+    for model in np.unique(allrows[:, 0]):
+        rows1 = allrows[np.where(allrows[:, 0] == model)[0], :]
+        for k in np.unique(rows1[:, 1]):
+            rows2 = rows1[np.where(rows1[:, 1] == str(k))[0], :]
+            for nucleipref in np.unique(rows2[:, 2]):
+                rows3 = rows2[np.where(rows2[:, 2] == str(nucleipref))[0], :]
+                for seed in np.unique(rows3[:, 3]):
+                    rows4 = rows3[np.where(rows3[:, 3] == str(seed))[0], :]
+                    for i, n in enumerate(np.unique(rows4[:, 4])):
+                        rows5 = rows4[np.where(rows4[:, 4] == str(n))[0], :]
+                        cs = np.array([float(c) for c in np.unique(rows5[:, 5])])
 
-                        rs = aux.rmean.to_numpy()
-                        rmax = np.max(aux.rmean.to_numpy())
+                        rs = np.ones(len(cs))
+                        for j, c in enumerate(cs):
+                            rs[j] = means.loc[model, int(k), nucleipref,
+                                          int(seed), int(n), c].r
+
                         idxmax = np.argmax(rs)
-                        cmax = aux.c.iloc[idxmax]
+                        rs = rs[:idxmax + 1]
+                        rmax = rs[-1]
+                        cmax = cs[idxmax]
+                        cs = cs[:idxmax + 1]
 
-                        xs = aux.c.to_numpy()[:idxmax + 1]
-                        ys = aux.rmean.to_numpy()[:idxmax + 1]
+                        xs = cs; ys = rs;
 
-                        if len(xs) < 3:
-                            continue # Insufficient sample for curve_fit
+                        if len(xs) < 3: continue # insufficient sample size
 
                         # p2:[-10,4,0,0], p3:[6,-7,3,0], myexp:[-.5, -6]
                         p0 = [-.5, -6] # exp
@@ -154,7 +165,8 @@ def find_coeffs(df, un, outdir):
                             nucleipref, model, n, k, seed))
                         scatter_c_vs_r(xs, ys, outpath, func=FUNC, params=params)
 
-                        data.append([nucleipref, model, n, k, seed, cmax, rmax, *params])
+                        data.append([nucleipref, model, n, k, seed, cmax,
+                                     rmax, *params])
 
     cols = 'nucleipref,model,nverticescomp,avgdegree,seed,cmax,rmax,a,b'.split(',')
     dffinal = pd.DataFrame(data, columns=cols)
@@ -348,28 +360,34 @@ def plot_r_s(dforig, un, outdir, sample):
                     for n in np.unique(rows4[:, 4]):
                         rows5 = rows4[np.where(rows4[:, 4] == str(n))[0], :]
                         cs = [float(c) for c in np.unique(rows5[:, 5])]
-                        ms = []; ss = []
-                        for c in cs:
-                            ms.append(means.loc[model, int(k), nucleipref,
-                                          int(seed), int(n), c].r)
-                            ss.append(stds.loc[model, int(k), nucleipref,
-                                          int(seed), int(n), c].r)
+                        rm = np.ones(len(cs)); rs = rm.copy();
+                        sm = rm.copy(); ss = rm.copy();
+                        for j, c in enumerate(cs):
+                            rm[j] = means.loc[model, int(k), nucleipref,
+                                          int(seed), int(n), c].r
+                            rs[j] = stds.loc[model, int(k), nucleipref,
+                                          int(seed), int(n), c].r
+                            sm[j] = means.loc[model, int(k), nucleipref,
+                                          int(seed), int(n), c].s
+                            ss[j] = stds.loc[model, int(k), nucleipref,
+                                          int(seed), int(n), c].s
 
-                        fig, ax = plt.subplots(1, 1, figsize=(W*.01, H*.01),
+                        fig, ax = plt.subplots(1, 2, figsize=(W*.01, H*.01),
                                 dpi=100)
 
-                        ax.errorbar(cs, ms, yerr=ss)
-                        ax.set_xlabel('c'); ax.set_ylabel('r')
-                        ax.set_xlim(0, 1); ax.set_ylim(0, 1)
+                        ax[0].errorbar(cs, rm, yerr=rs)
+                        ax[0].set_xlabel('c'); ax[0].set_ylabel('r')
+                        ax[0].set_xlim(0, 1); ax[0].set_ylim(0, 1)
 
-                        # ax[1].errorbar(un['c'], df5.smean, yerr=df5.sstd)
-                        # ax[1].set_xlim(0, 1); ax[1].set_ylim(0, 1)
-                        # ax[1].set_xlabel('c'); ax[1].set_ylabel('s')
+                        ax[1].errorbar(cs, sm, yerr=ss)
+                        ax[1].set_xlabel('c'); ax[1].set_ylabel('s')
+                        ax[1].set_xlim(0, 1); ax[1].set_ylim(0, 1)
 
                         outpath = pjoin(outdir, '{}_{}_{}_{}_{}.png'.format(
-                            model, k, nucleipref, seed, n))
+                            model, k, nucleipref, n, seed))
                         plt.savefig(outpath)
                         plt.close()
+                    if int(seed) > 3: break
 
 ##########################################################
 def main():
@@ -384,18 +402,10 @@ def main():
     readmepath = create_readme(sys.argv, args.outdir)
 
     df = pd.read_csv(args.res)
-
-    # df = df.loc[df.nverticescomp != 10000]
-
     un = get_unique_vals(df)
-    # plot_origpoints(df, un, pjoin(args.outdir, 'origpoints'), 1)
-    # dfparsed = parse_results(df, un, args.outdir)
-    # plot_r_s(dfparsed, un, pjoin(args.outdir, 'plots_r_s'), 1)
-    plot_r_s(df, un, pjoin(args.outdir, 'plots_r_s'), 1)
-    breakpoint()
 
-
-    dfcoeffs = find_coeffs(dfparsed, un, args.outdir)
+    # plot_r_s(df, un, pjoin(args.outdir, 'plots_r_s'), 1)
+    dfcoeffs = find_coeffs(df, args.outdir)
     plot_parameters_pairwise(dfcoeffs, un, pjoin(args.outdir, 'params'))
     plot_slice(dfcoeffs, un, 'avgdegree', 8, pjoin(args.outdir, 'slicek8'))
     return
