@@ -108,7 +108,7 @@ def parse_results(df, un, outdir):
     return dffinal
 
 ##########################################################
-def find_coeffs(dforig, outdir):
+def find_coeffs(df, outdir):
     """Parse results from simulation"""
     info(inspect.stack()[0][3] + '()')
 
@@ -121,41 +121,33 @@ def find_coeffs(dforig, outdir):
     outdir = pjoin(outdir, 'fits')
     os.makedirs(outdir, exist_ok=True)
 
-    df = dforig.copy()
-    del df['nverticesfull']
-    aux = df.groupby(['model', 'avgdegree', 'nucleipref',
-                      'seed', 'nverticescomp', 'c'])
-    means = aux.mean()
-    allrows = np.array(list(means.index)).astype(str)
-
     data = []
-    # assuming the order of the indices are: (model, k, nucleipref, seed, n, c)
-    for model in np.unique(allrows[:, 0]):
-        rows1 = allrows[np.where(allrows[:, 0] == model)[0], :]
-        for k in np.unique(rows1[:, 1]):
-            rows2 = rows1[np.where(rows1[:, 1] == str(k))[0], :]
-            for nucleipref in np.unique(rows2[:, 2]):
-                rows3 = rows2[np.where(rows2[:, 2] == str(nucleipref))[0], :]
-                for seed in np.unique(rows3[:, 3]):
-                    rows4 = rows3[np.where(rows3[:, 3] == str(seed))[0], :]
-                    for i, n in enumerate(np.unique(rows4[:, 4])):
-                        rows5 = rows4[np.where(rows4[:, 4] == str(n))[0], :]
-                        cs = np.array([float(c) for c in np.unique(rows5[:, 5])])
-
-                        rs = np.ones(len(cs))
-                        for j, c in enumerate(cs):
-                            rs[j] = means.loc[model, int(k), nucleipref,
-                                          int(seed), int(n), c].r
-
+    for nucleipref in np.unique(df.nucleipref):
+        df1 = df.loc[df.nucleipref == nucleipref]
+        for model in np.unique(df1.model):
+            info('nucleipref:{}, model:{}'.format(nucleipref, model))
+            df2 = df1.loc[df1.model == model]
+            for n in np.unique(df2.nverticesfull):
+                df3 = df2.loc[df2.nverticesfull == n]
+                for k in np.unique(df3.avgdegree):
+                    df4 = df3.loc[df3.avgdegree == k]
+                    for seed in np.unique(df4.seed):
+                        df5 = df4.loc[df4.seed == seed]
+                        grouped = df5.groupby(['c'])
+                        rs = grouped.mean().r.to_numpy()
                         idxmax = np.argmax(rs)
+
                         rs = rs[:idxmax + 1]
+                        ss = grouped.mean().s.to_numpy()[:idxmax + 1]
+                        cs = grouped.mean().index.to_numpy()[:idxmax +1]
+
                         rmax = rs[-1]
-                        cmax = cs[idxmax]
-                        cs = cs[:idxmax + 1]
+                        cmax = cs[-1]
 
-                        xs = cs; ys = rs;
+                        xs = cs; ys = rs
 
-                        if len(xs) < 3: continue # insufficient sample size
+                        if len(xs) < 3:
+                            continue # Insufficient sample for curve_fit
 
                         # p2:[-10,4,0,0], p3:[6,-7,3,0], myexp:[-.5, -6]
                         p0 = [-.5, -6] # exp
@@ -165,10 +157,12 @@ def find_coeffs(dforig, outdir):
                             nucleipref, model, n, k, seed))
                         scatter_c_vs_r(xs, ys, outpath, func=FUNC, params=params)
 
-                        data.append([nucleipref, model, n, k, seed, cmax,
+                        ncomp = np.unique(df5.nverticescomp)[0] # all the same
+                        data.append([nucleipref, model, n, ncomp, k, seed, cmax,
                                      rmax, *params])
 
-    cols = 'nucleipref,model,nverticescomp,avgdegree,seed,cmax,rmax,a,b'.split(',')
+
+    cols = 'nucleipref,model,nverticesfull,nverticescomp,avgdegree,seed,cmax,rmax,a,b'.split(',')
     dffinal = pd.DataFrame(data, columns=cols)
     dffinal.to_csv(aggregpath, index=False)
     return dffinal
@@ -241,30 +235,11 @@ def plot_slice(dforig, fixed, fixedparam, outdir):
             df1 = df.loc[(df.nucleipref == nucleipref)]
             for model in np.unique(df1.model):
                 df2 = df1.loc[df1.model == model]
-                data = []
-                for seed in np.unique(df2.seed):
-                    df3 = df2.loc[df2.seed == seed]
-                    data.append(df3[param].to_numpy())
-
-                data = np.array(data)
-
-                # axs[j].errorbar(np.unique(df2[varying]), np.mean(data, axis=0),
-                        # yerr=np.std(data, axis=0), label=model)
-
-                xmean = [];
-                xstd = [];
-                ymean = [];
-                ystd = [];
-
-                lims = [0, 200, 400, 600, 800]
-                for i in range(4):
-                    inds = np.where((df2[varying] > lims[i]) & (df2[varying] < lims[i+1]))[0]
-                    xx = df2[varying].iloc[inds]
-                    yy = df2[param].iloc[inds]
-                    xmean.append(np.mean(xx))
-                    xstd.append(np.std(xx))
-                    ymean.append(np.mean(yy))
-                    ystd.append(np.std(yy))
+                grouped = df2.groupby(['nverticesfull'])
+                xmean = grouped.mean()[varying]
+                xstd = grouped.std()[varying]
+                ymean = grouped.mean()[param]
+                ystd = grouped.std()[param]
 
                 axs[j].errorbar(xmean, ymean, xerr=xstd, yerr=ystd,
                         label=model, alpha=0.8)
