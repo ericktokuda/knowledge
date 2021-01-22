@@ -221,7 +221,7 @@ def plot_contours(df, outdir):
                 plt.close()
 
 ##########################################################
-def plot_slice(dforig, un, fixed, fixedparam, outdir):
+def plot_slice(dforig, fixed, fixedparam, outdir):
     """Short description """
     info(inspect.stack()[0][3] + '()')
     os.makedirs(outdir, exist_ok=True)
@@ -232,23 +232,42 @@ def plot_slice(dforig, un, fixed, fixedparam, outdir):
     params = ['cmax', 'a', 'b', 'rmax']
 
     figscale = 4
-    ncols = len(un['nucleipref'])
+    ncols = len(np.unique(df.nucleipref))
 
     for param in params:
         fig, axs = plt.subplots(1, ncols,
                     figsize=(ncols*figscale, 1*figscale))
-        for j, nucleipref in enumerate(un['nucleipref']):
+        for j, nucleipref in enumerate(np.unique(df.nucleipref)):
             df1 = df.loc[(df.nucleipref == nucleipref)]
-            for model in un['model']:
+            for model in np.unique(df1.model):
                 df2 = df1.loc[df1.model == model]
                 data = []
-                for seed in un['seed']:
+                for seed in np.unique(df2.seed):
                     df3 = df2.loc[df2.seed == seed]
                     data.append(df3[param].to_numpy())
 
                 data = np.array(data)
-                axs[j].errorbar(np.unique(df[varying]), np.mean(data, axis=0),
-                        yerr=np.std(data, axis=0), label=model)
+
+                # axs[j].errorbar(np.unique(df2[varying]), np.mean(data, axis=0),
+                        # yerr=np.std(data, axis=0), label=model)
+
+                xmean = [];
+                xstd = [];
+                ymean = [];
+                ystd = [];
+
+                lims = [0, 200, 400, 600, 800]
+                for i in range(4):
+                    inds = np.where((df2[varying] > lims[i]) & (df2[varying] < lims[i+1]))[0]
+                    xx = df2[varying].iloc[inds]
+                    yy = df2[param].iloc[inds]
+                    xmean.append(np.mean(xx))
+                    xstd.append(np.std(xx))
+                    ymean.append(np.mean(yy))
+                    ystd.append(np.std(yy))
+
+                axs[j].errorbar(xmean, ymean, xerr=xstd, yerr=ystd,
+                        label=model, alpha=0.8)
 
             axs[j].set_xlabel(varying)
             axs[j].set_ylabel(param)
@@ -402,13 +421,13 @@ def main():
     readmepath = create_readme(sys.argv, args.outdir)
 
     df = pd.read_csv(args.res)
-    un = get_unique_vals(df)
+    # un = get_unique_vals(df)
 
     # plot_r_s(df, un, pjoin(args.outdir, 'plots_r_s'), 1)
     dfcoeffs = find_coeffs(df, args.outdir)
-    plot_parameters_pairwise(dfcoeffs, un, pjoin(args.outdir, 'params'))
-    plot_slice(dfcoeffs, un, 'avgdegree', 8, pjoin(args.outdir, 'slicek8'))
-    return
+    # plot_parameters_pairwise(dfcoeffs, un, pjoin(args.outdir, 'params'))
+    plot_slice(dfcoeffs, 'avgdegree', 8, pjoin(args.outdir, 'slicek8'))
+    # return
     # plot_slice(dfcoeffs, un, 'nverticescomp', 300, pjoin(args.outdir, 'slicen300'))
 
     # For multiple avgdegrees and nverticescomp
