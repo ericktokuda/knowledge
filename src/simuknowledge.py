@@ -238,7 +238,7 @@ def run_subexperiment(gorig, nucleipref, expid, probfunc, lens):
     eps = .01
     betvs[np.where(betvs == 0)] = eps
 
-    maxruns = 1500
+    maxruns = 15000
     for i in range(maxruns): #1st stop condition
         if nucleipref == 'betv':
             probs = betvs[resoids]/np.sum(betvs[resoids])
