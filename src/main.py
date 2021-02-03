@@ -44,9 +44,9 @@ def generate_graph(model, nvertices, avgdegree, rewiringprob,
     elif model == 'gr':
         radius = get_rgg_params(nvertices, avgdegree)
         g = igraph.Graph.GRG(nvertices, radius)
-    elif model == 'wi':
+    elif model == 'gm':
         from myutils import graph
-        g = graph.simplify_graphml('wiki_Phys_Math.graphml', directed=False)
+        g = graph.simplify_graphml('graph.graphml', directed=False)
     else:
         msg = 'Please choose a proper topology model'
         raise Exception(msg)
@@ -293,11 +293,11 @@ def main():
     os.makedirs(args.outdir, exist_ok=True)
     readmepath = create_readme(sys.argv, args.outdir)
 
-    models = ['ba', 'er', 'gr'] # ['ba', 'er', 'gr']
+    models = ['ba', 'er', 'gr'] # ['ba', 'er', 'gm', 'gr']
     nvertices = [100, 300, 500, 700] # [100, 300, 500, 700]
     avgdegrees = [6, 12, 18, 24] # np.arange(4, 21)
     nucleiprefs = ['betv', 'degr', 'dist', 'unif']
-    niter = 40 # 50
+    niter = 40 # 40
     nseeds = 50 # 50
     decayparam1 = 1
     decayparam2 = 0.5
