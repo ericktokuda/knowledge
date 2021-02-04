@@ -65,7 +65,7 @@ def generate_graph(model, nvertices, avgdegree, rewiringprob,
     # coords = (aux - np.mean(aux, 0))/np.std(aux, 0) # standardization
     coords = -1 + 2*(aux - np.min(aux, 0))/(np.max(aux, 0)-np.min(aux, 0)) # minmax
     g.vs['type'] = NONE
-    g['coords'] = coords
+    # g['coords'] = coords
     return g
 
 ##########################################################
@@ -187,7 +187,8 @@ def get_rgg_params(nvertices, avgdegree):
 
 ##########################################################
 def run_experiment(params):
-    """Sequential runs, given the model. nvertices, avgdegree, nucleiratio, and niter"""
+    """Sequential runs, given the model. nvertices, avgdegree, nucleipref,
+    niter, seed, decayprams, and outdir"""
     model = params['model']
     nvertices = params['nvertices']
     avgdegree = params['avgdegree']
@@ -196,6 +197,7 @@ def run_experiment(params):
     seed = params['seed']
     decayparam1 = params['decayparam1']
     decayparam2 = params['decayparam2']
+    graphoutdir = params['graphoutdir']
 
     info('{},{},{},{},{},{},{}'.format(model, nvertices, avgdegree, nucleipref,
                                  seed, decayparam1, decayparam2))
@@ -207,17 +209,24 @@ def run_experiment(params):
     g = g.components(mode='weak').giant() # the largest component
     lens = np.array(g.shortest_paths())
 
-    probfunc = lambda x: decayparam1 * np.exp(- x * decayparam2) # prob. based on top. distance
+    # prob. based on topological distance
+    probfunc = lambda x: decayparam1 * np.exp(- x * decayparam2)
 
     ret = []
     for i in range(niter):
-        ret.extend(run_subexperiment(g, nucleipref, i, probfunc, lens))
+        r, newg = run_subexperiment(g, nucleipref, i, probfunc, lens)
+        ret.extend(r)
+        if graphoutdir:
+            f = '_'.join(str(x) for x in [model, nvertices, avgdegree,
+                                          nucleipref, seed, i])
+            outpath = pjoin(graphoutdir, f + '.graphml')
+            newg.write_graphml(outpath)
     return ret
 
 ##########################################################
 def run_subexperiment(gorig, nucleipref, expid, probfunc, lens):
-    """Sample nuclei the graph @gorig with
-    preferential location to @nucleipref"""
+    """Sample nuclei the graph @gorig with preferential location to @nucleipref.
+    @outdir defines if we want to store the graph"""
     # info(inspect.stack()[0][3] + '()')
 
     nvertices = gorig.vcount()
@@ -228,7 +237,7 @@ def run_subexperiment(gorig, nucleipref, expid, probfunc, lens):
     g = gorig.copy()
     g.vs['type'] = [RESOURCE] * nvertices
     g.vs[np.random.randint(nvertices)]['type'] = NUCLEUS
-    maxnuclei = .95 * nvertices
+    maxnuclei = int(.95 * nvertices)
 
     nuclids = np.where(np.array(g.vs['type']) == NUCLEUS)[0]
     resoids = np.where(np.array(g.vs['type']) == RESOURCE)[0]
@@ -237,9 +246,16 @@ def run_subexperiment(gorig, nucleipref, expid, probfunc, lens):
     betvs = np.array(g.betweenness())
     eps = .01
     betvs[np.where(betvs == 0)] = eps
+    nuclei = - np.ones(nvertices, dtype=int)
+    nuclei[0] = nuclids[0]
 
-    maxruns = 15000
-    for i in range(maxruns): #1st stop condition
+    maxntries = 1000
+
+    if nucleipref == 'dila':
+        dists = g.shortest_paths(nuclids)[0]
+        newreso = np.argsort(dists)[1:] # Excluding self
+
+    for nucleusidx in range(1, maxnuclei): #1st stop condition
         if nucleipref == 'betv':
             probs = betvs[resoids]/np.sum(betvs[resoids])
             newnode = np.random.choice(resoids, p=probs)
@@ -247,11 +263,12 @@ def run_subexperiment(gorig, nucleipref, expid, probfunc, lens):
             probs = degrees[resoids]/np.sum(degrees[resoids])
             newnode = np.random.choice(resoids, p=probs)
         elif nucleipref == 'dist':
-            newnode = np.random.choice(resoids)
-            dists = lens[newnode][nuclids]
-            mindist = np.min(dists)
-            if np.random.rand() > probfunc(mindist):
-                continue
+            for j in range(maxntries):
+                newnode = np.random.choice(resoids)
+                mindist = np.min(lens[newnode][nuclids])
+                if np.random.rand() < probfunc(mindist): break
+        elif nucleipref == 'dila':
+            newnode = newreso[nucleusidx]
         elif nucleipref == 'unif':
             newnode = np.random.choice(resoids)
 
@@ -274,19 +291,25 @@ def run_subexperiment(gorig, nucleipref, expid, probfunc, lens):
         c = len(nuclids) / nvertices
         ret.append([expid, nvertices, c, r, s])
 
-        if len(nuclids) > maxnuclei: break #2nd stop condition
+        nuclei[nucleusidx] = newnode
 
-    # info('nsteps:{}'.format(i))
+    nuclei = nuclei[:np.where(nuclei == -1)[0][0]]
+    g.vs['nucleiorder'] = -1
+    for j, v in enumerate(nuclei):
+        g.vs[v]['nucleiorder'] = j
+
     ret.append([expid, nvertices, 0.0, 0.0, 0.0])
-    return ret
+    return ret, g
 
 ##########################################################
 def main():
     info(inspect.stack()[0][3] + '()')
     t0 = time.time()
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--nseeds', default=1, type=int, help='Random seed')
-    parser.add_argument('--nprocs', default=1, type=int, help='Number of parallel processes')
+    parser.add_argument('--nprocs', default=1, type=int,
+                        help='Number of parallel processes')
+    parser.add_argument('--storegraphs', action='store_true',
+                        help='Whether store the graphs')
     parser.add_argument('--outdir', default='/tmp/out/', help='Output directory')
     args = parser.parse_args()
 
@@ -302,16 +325,18 @@ def main():
     decayparam1 = 1
     decayparam2 = 0.5
 
+
     append_to_file(readmepath, 'models:{}, nvertices:{}, avgdegrees:{},' \
                    'nucleiprefs:{}, niter:{}, nseeds:{},' \
-                   'decayparam1:{}, decayparam2:{}' \
+                   'decayparam1:{}, decayparam2:{}, storegraphs:{}' \
                    .format(models, nvertices, avgdegrees, nucleiprefs,
                            niter, nseeds, decayparam1,
-                           decayparam2))
+                           decayparam2, args.storegraphs))
 
+    graphoutdir = args.outdir if args.storegraphs else ''
     aux = list(product(models, nvertices, avgdegrees, nucleiprefs,
                        [niter], list(range(nseeds)), [decayparam1],
-                       [decayparam2])) # Fill here
+                       [decayparam2], [graphoutdir])) # Fill here
     params = []
     for i, row in enumerate(aux):
         params.append(dict(model = row[0],
@@ -322,6 +347,7 @@ def main():
                            seed = row[5],
                            decayparam1 = row[6],
                            decayparam2 = row[7],
+                           graphoutdir = row[8],
                            ))
 
     if args.nprocs == 1:
