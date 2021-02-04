@@ -249,13 +249,13 @@ def plot_slice(dforig, fixed, fixedparam, outdir):
             axs[j].set_title(nucleipref)
 
         plt.legend(loc='upper right')
-        plotpath = pjoin(outdir, '{}_{}.png'.format(param, model))
+        plotpath = pjoin(outdir, '{}.png'.format(param))
         plt.tight_layout()
         plt.savefig(plotpath)
         plt.close()
 
 ##########################################################
-def plot_parameters_pairwise(df, un, outdir):
+def plot_parameters_pairwise(df, outdir):
     """Short description """
     info(inspect.stack()[0][3] + '()')
     os.makedirs(outdir, exist_ok=True)
@@ -326,7 +326,7 @@ def plot_triangulations(df, outdir):
                 plt.close()
 
 ##########################################################
-def plot_r_s(dforig, un, outdir, sample):
+def plot_r_s(dforig, outdir, sample):
     """Plot r and s means for each city"""
     info(inspect.stack()[0][3] + '()')
 
@@ -398,10 +398,10 @@ def main():
     df = pd.read_csv(args.res)
     # un = get_unique_vals(df)
 
-    # plot_r_s(df, un, pjoin(args.outdir, 'plots_r_s'), 1)
+    plot_r_s(df, pjoin(args.outdir, 'plots_r_s'), 1)
     dfcoeffs = find_coeffs(df, args.outdir)
-    # plot_parameters_pairwise(dfcoeffs, un, pjoin(args.outdir, 'params'))
-    plot_slice(dfcoeffs, 'avgdegree', 8, pjoin(args.outdir, 'slicek8'))
+    # plot_parameters_pairwise(dfcoeffs, pjoin(args.outdir, 'params'))
+    # plot_slice(dfcoeffs, 'avgdegree', 8, pjoin(args.outdir, 'slicek8'))
     # return
     # plot_slice(dfcoeffs, un, 'nverticescomp', 300, pjoin(args.outdir, 'slicen300'))
 
