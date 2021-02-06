@@ -319,7 +319,7 @@ def main():
     models = ['ba', 'er', 'gr'] # ['ba', 'er', 'gm', 'gr']
     nvertices = [100, 300, 500, 700] # [100, 300, 500, 700]
     avgdegrees = [6, 12, 18, 24] # np.arange(4, 21)
-    nucleiprefs = ['betv', 'degr', 'dist', 'unif']
+    nucleiprefs = ['betv', 'degr', 'dila', 'dist', 'unif'] # ['betv', 'degr', 'dila', 'dist', 'unif']
     niter = 40 # 40
     nseeds = 50 # 50
     decayparam1 = 1
