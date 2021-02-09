@@ -298,7 +298,7 @@ def run_subexperiment(gorig, nucleipref, expid, probfunc, lens):
     for j, v in enumerate(nuclei):
         g.vs[v]['nucleiorder'] = j
 
-    ret.append([expid, nvertices, 0.0, 0.0, 0.0])
+    ret.append([expid, nvertices, 1.0, 0.0, 0.0])
     return ret, g
 
 ##########################################################
