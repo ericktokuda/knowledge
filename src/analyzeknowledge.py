@@ -398,12 +398,12 @@ def main():
     df = pd.read_csv(args.res)
     # un = get_unique_vals(df)
 
-    plot_r_s(df, pjoin(args.outdir, 'plots_r_s'), 1)
+    # plot_r_s(df, pjoin(args.outdir, 'plots_r_s'), 1)
     dfcoeffs = find_coeffs(df, args.outdir)
     # plot_parameters_pairwise(dfcoeffs, pjoin(args.outdir, 'params'))
-    # plot_slice(dfcoeffs, 'avgdegree', 8, pjoin(args.outdir, 'slicek8'))
-    # return
-    # plot_slice(dfcoeffs, un, 'nverticescomp', 300, pjoin(args.outdir, 'slicen300'))
+    plot_slice(dfcoeffs, 'avgdegree', 12, pjoin(args.outdir, 'slicek8'))
+    plot_slice(dfcoeffs, 'nverticescomp', 300, pjoin(args.outdir, 'slicen300'))
+    return
 
     # For multiple avgdegrees and nverticescomp
     # plot_contours(dfcoeffs, pjoin(args.outdir, 'contours'))
