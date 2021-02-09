@@ -26,7 +26,7 @@ RESOURCE = 2
 
 #############################################################
 def generate_graph(model, nvertices, avgdegree, rewiringprob,
-                   latticethoroidal=False, tmpdir='/tmp/'):
+        graphmldir, latticethoroidal=False):
     """Generate graph with given topology """
     # info(inspect.stack()[0][3] + '()')
 
@@ -44,12 +44,11 @@ def generate_graph(model, nvertices, avgdegree, rewiringprob,
     elif model == 'gr':
         radius = get_rgg_params(nvertices, avgdegree)
         g = igraph.Graph.GRG(nvertices, radius)
-    elif model == 'gm':
+    else: #Graphml path
+        info('Loading graphml')
         from myutils import graph
-        g = graph.simplify_graphml('graph.graphml', directed=False)
-    else:
-        msg = 'Please choose a proper topology model'
-        raise Exception(msg)
+        modelpath = pjoin(graphmldir, model + '.graphml')
+        g = graph.simplify_graphml(modelpath, directed=False)
 
     if model in ['gr', 'wx']:
         aux = np.array([ [g.vs['x'][i], g.vs['y'][i]] for i in range(g.vcount()) ])
@@ -197,6 +196,7 @@ def run_experiment(params):
     seed = params['seed']
     decayparam1 = params['decayparam1']
     decayparam2 = params['decayparam2']
+    graphmldir = params['graphmldir']
     graphoutdir = params['graphoutdir']
 
     info('{},{},{},{},{},{},{}'.format(model, nvertices, avgdegree, nucleipref,
@@ -205,7 +205,7 @@ def run_experiment(params):
     np.random.seed(seed)
     random.seed(seed)
 
-    g = generate_graph(model, nvertices, avgdegree, rewiringprob=.5)
+    g = generate_graph(model, nvertices, avgdegree, .5, graphmldir)
     g = g.components(mode='weak').giant() # the largest component
     lens = np.array(g.shortest_paths())
 
@@ -310,6 +310,8 @@ def main():
                         help='Number of parallel processes')
     parser.add_argument('--storegraphs', action='store_true',
                         help='Whether store the graphs')
+    parser.add_argument('--graphmldir', default='./graphml',
+                        help='Directory containing the eventual graphml')
     parser.add_argument('--outdir', default='/tmp/out/', help='Output directory')
     args = parser.parse_args()
 
@@ -318,25 +320,25 @@ def main():
 
     models = ['ba', 'er', 'gr'] # ['ba', 'er', 'gm', 'gr']
     nvertices = [100, 300, 500, 700] # [100, 300, 500, 700]
-    avgdegrees = [6, 12, 18, 24] # np.arange(4, 21)
+    avgdegrees = [6, 12, 18, 24] # [6, 12, 18, 24]
     nucleiprefs = ['betv', 'degr', 'dila', 'dist', 'unif'] # ['betv', 'degr', 'dila', 'dist', 'unif']
     niter = 40 # 40
     nseeds = 50 # 50
     decayparam1 = 1
     decayparam2 = 0.5
 
-
     append_to_file(readmepath, 'models:{}, nvertices:{}, avgdegrees:{},' \
                    'nucleiprefs:{}, niter:{}, nseeds:{},' \
-                   'decayparam1:{}, decayparam2:{}, storegraphs:{}' \
+                   'decayparam1:{}, decayparam2:{}, graphmldir:{},' \
+                   'storegraphs:{}' \
                    .format(models, nvertices, avgdegrees, nucleiprefs,
                            niter, nseeds, decayparam1,
-                           decayparam2, args.storegraphs))
+                           decayparam2, args.graphmldir, args.storegraphs))
 
     graphoutdir = args.outdir if args.storegraphs else ''
     aux = list(product(models, nvertices, avgdegrees, nucleiprefs,
                        [niter], list(range(nseeds)), [decayparam1],
-                       [decayparam2], [graphoutdir])) # Fill here
+                       [decayparam2], [args.graphmldir], [graphoutdir])) # Fill here
     params = []
     for i, row in enumerate(aux):
         params.append(dict(model = row[0],
@@ -347,7 +349,8 @@ def main():
                            seed = row[5],
                            decayparam1 = row[6],
                            decayparam2 = row[7],
-                           graphoutdir = row[8],
+                           graphmldir = row[8],
+                           graphoutdir = row[9],
                            ))
 
     if args.nprocs == 1:
