@@ -168,6 +168,51 @@ def find_coeffs(df, outdir):
     return dffinal
 
 ##########################################################
+def get_cmax_rmax(df, outdir):
+    """Parse results from simulation"""
+    info(inspect.stack()[0][3] + '()')
+
+    rmaxpath = pjoin(outdir, 'rmax_cmax.csv')
+
+    if os.path.exists(rmaxpath):
+        info('Loading existing rmaxpath results:{}'.format(rmaxpath))
+        return pd.read_csv(rmaxpath)
+
+    outdir = pjoin(outdir, 'fits')
+    os.makedirs(outdir, exist_ok=True)
+
+    data = []
+    for nucleipref in np.unique(df.nucleipref):
+        df1 = df.loc[df.nucleipref == nucleipref]
+        for model in np.unique(df1.model):
+            info('nucleipref:{}, model:{}'.format(nucleipref, model))
+            df2 = df1.loc[df1.model == model]
+            for n in np.unique(df2.nverticesfull):
+                df3 = df2.loc[df2.nverticesfull == n]
+                for k in np.unique(df3.avgdegree):
+                    df4 = df3.loc[df3.avgdegree == k]
+                    for seed in np.unique(df4.seed):
+                        df5 = df4.loc[df4.seed == seed]
+                        cmaxs = []; rmaxs = [];
+                        for i in np.unique(df5.i):
+                            df6 = df5.loc[df5.i == i]
+                            idxmax = df6.r.idxmax()
+                            cmaxs.append(df6.loc[idxmax].c)
+                            rmaxs.append(df6.loc[idxmax].r)
+
+                        cmaxmean = np.mean(cmaxs); cmaxstd = np.std(cmaxs);
+                        rmaxmean = np.mean(rmaxs); rmaxstd = np.std(rmaxs);
+                        ncomp = np.unique(df5.nverticescomp)[0] # all the same
+                        data.append([nucleipref, model, n, ncomp, k, seed,
+                            cmaxmean, cmaxstd, rmaxmean, rmaxstd])
+
+    cols = 'nucleipref,model,nverticesfull,nverticescomp,avgdegree,seed,' \
+            'cmaxmean,cmaxstd,rmaxmean,rmaxstd'.split(',')
+    dffinal = pd.DataFrame(data, columns=cols)
+    dffinal.to_csv(rmaxpath, index=False)
+    return dffinal
+
+##########################################################
 def scatter_c_vs_r(cs, rs, outpath, func=None, params=None):
     """Plot C x R"""
     # info(inspect.stack()[0][3] + '()')
@@ -396,10 +441,10 @@ def main():
     readmepath = create_readme(sys.argv, args.outdir)
 
     df = pd.read_csv(args.res)
-    # un = get_unique_vals(df)
 
     # plot_r_s(df, pjoin(args.outdir, 'plots_r_s'), 1)
     dfcoeffs = find_coeffs(df, args.outdir)
+    # dfrmax = get_cmax_rmax(df, args.outdir)
     # plot_parameters_pairwise(dfcoeffs, pjoin(args.outdir, 'params'))
     plot_slice(dfcoeffs, 'avgdegree', 12, pjoin(args.outdir, 'slicek8'))
     plot_slice(dfcoeffs, 'nverticescomp', 300, pjoin(args.outdir, 'slicen300'))
