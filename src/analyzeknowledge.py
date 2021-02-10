@@ -172,13 +172,12 @@ def get_cmax_rmax(df, outdir):
     """Parse results from simulation"""
     info(inspect.stack()[0][3] + '()')
 
-    rmaxpath = pjoin(outdir, 'rmax_cmax.csv')
+    rmaxpath = pjoin(outdir, 'rmaxcmax.csv')
 
     if os.path.exists(rmaxpath):
         info('Loading existing rmaxpath results:{}'.format(rmaxpath))
         return pd.read_csv(rmaxpath)
 
-    outdir = pjoin(outdir, 'fits')
     os.makedirs(outdir, exist_ok=True)
 
     data = []
@@ -298,6 +297,53 @@ def plot_slice(dforig, fixed, fixedparam, outdir):
         plt.tight_layout()
         plt.savefig(plotpath)
         plt.close()
+
+##########################################################
+def plot_cmax_rmax(dfrmax, outdir):
+    """Plot cmax and rmax"""
+    info(inspect.stack()[0][3] + '()')
+    os.makedirs(outdir, exist_ok=True)
+
+    df = dfrmax.copy()
+    figscale = 4
+
+    models = np.unique(df.model)
+
+    data = []
+    for nverticesfull in np.unique(df.nverticesfull):
+        df1 = df.loc[df.nverticesfull == nverticesfull]
+        for avgdegree in np.unique(df1.avgdegree):
+            df2 = df1.loc[df1.avgdegree == avgdegree]
+            for seed in np.unique(df2.seed):
+                df3 = df2.loc[df2.seed == seed]
+
+                fig, axs = plt.subplots(1, 2,
+                            figsize=(2*figscale, 1*figscale))
+
+                for nucleipref in np.unique(df3.nucleipref):
+                    df4 = df3.loc[df3.nucleipref == nucleipref]
+                    rmaxmean = df4.rmaxmean; rmaxstd = df4.rmaxstd
+                    axs[0].errorbar(range(len(rmaxmean)), rmaxmean,
+                                    yerr=rmaxstd, label=nucleipref, alpha=0.8)
+                    cmaxmean = df4.cmaxmean; cmaxstd = df4.cmaxstd
+                    axs[1].errorbar(range(len(cmaxmean)), cmaxmean,
+                                    yerr=cmaxstd, label=nucleipref, alpha=0.8)
+
+
+                for i in range(2):
+                    axs[i].set_xticks(range(len(models)))
+                    axs[i].set_xticklabels(np.unique(df.model), rotation=-45)
+                    axs[i].set_xlabel('Models')
+                    axs[i].legend(loc='upper right')
+
+                axs[0].set_ylabel('rmax'); axs[1].set_ylabel('cmax');
+
+                # plt.legend(loc='upper right')
+                f = '{}_{}_{:02d}.png'.format(nverticesfull, avgdegree, seed)
+                plotpath = pjoin(outdir, f)
+                plt.tight_layout()
+                plt.savefig(plotpath)
+                plt.close()
 
 ##########################################################
 def plot_parameters_pairwise(df, outdir):
@@ -443,12 +489,13 @@ def main():
     df = pd.read_csv(args.res)
 
     # plot_r_s(df, pjoin(args.outdir, 'plots_r_s'), 1)
-    dfcoeffs = find_coeffs(df, args.outdir)
-    # dfrmax = get_cmax_rmax(df, args.outdir)
+    # dfcoeffs = find_coeffs(df, args.outdir)
+    dfrmax = get_cmax_rmax(df, args.outdir)
+    plot_cmax_rmax(dfrmax, pjoin(args.outdir, 'cmaxrmax'))
     # plot_parameters_pairwise(dfcoeffs, pjoin(args.outdir, 'params'))
-    plot_slice(dfcoeffs, 'avgdegree', 12, pjoin(args.outdir, 'slicek8'))
-    plot_slice(dfcoeffs, 'nverticescomp', 300, pjoin(args.outdir, 'slicen300'))
     return
+    plot_slice(dfcoeffs, 'avgdegree', 12, pjoin(args.outdir, 'slicek12'))
+    plot_slice(dfcoeffs, 'nverticescomp', 300, pjoin(args.outdir, 'slicen300'))
 
     # For multiple avgdegrees and nverticescomp
     # plot_contours(dfcoeffs, pjoin(args.outdir, 'contours'))
