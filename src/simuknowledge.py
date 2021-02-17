@@ -187,7 +187,7 @@ def get_rgg_params(nvertices, avgdegree):
 ##########################################################
 def run_experiment(params):
     """Sequential runs, given the model. nvertices, avgdegree, nucleipref,
-    niter, seed, decayprams, and outdir"""
+    niter, seed, decayparams, and outdir"""
     model = params['model']
     nvertices = params['nvertices']
     avgdegree = params['avgdegree']
@@ -324,8 +324,8 @@ def main():
     nucleiprefs = ['betv', 'degr', 'dila', 'dist', 'unif'] # ['betv', 'degr', 'dila', 'dist', 'unif']
     niter = 40 # 40
     nseeds = 50 # 50
-    decayparam1 = 1
-    decayparam2 = 0.5
+    decayparam1 = 2.451
+    decayparam2 = 1.253
 
     append_to_file(readmepath, 'models:{}, nvertices:{}, avgdegrees:{},' \
                    'nucleiprefs:{}, niter:{}, nseeds:{},' \
