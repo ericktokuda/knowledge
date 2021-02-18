@@ -173,6 +173,7 @@ def get_cmax_rmax(df, outdir):
     info(inspect.stack()[0][3] + '()')
 
     rmaxpath = pjoin(outdir, 'rmaxcmax.csv')
+    s1 = 1 / np.sqrt(2) # Minimum s
 
     if os.path.exists(rmaxpath):
         info('Loading existing rmaxpath results:{}'.format(rmaxpath))
@@ -192,21 +193,36 @@ def get_cmax_rmax(df, outdir):
                     df4 = df3.loc[df3.avgdegree == k]
                     for seed in np.unique(df4.seed):
                         df5 = df4.loc[df4.seed == seed]
-                        cmaxs = []; rmaxs = [];
+                        crmaxs = []; rmaxs = []; csthresh = []
                         for i in np.unique(df5.i):
                             df6 = df5.loc[df5.i == i]
+
                             idxmax = df6.r.idxmax()
-                            cmaxs.append(df6.loc[idxmax].c)
+                            crmaxs.append(df6.loc[idxmax].c)
                             rmaxs.append(df6.loc[idxmax].r)
 
-                        cmaxmean = np.mean(cmaxs); cmaxstd = np.std(cmaxs);
+                            indc2 = np.where(df6.s < s1)[0][0]
+                            
+                            c2 = df6.iloc[indc2].c
+                            s2 = df6.iloc[indc2].s
+                            c0 = df6.iloc[indc2 - 1].c
+                            s0 = df6.iloc[indc2 - 1].s
+                            c1 = (s1 - s0) / (s2 - s0) * (c2 - c0) + c0
+                            csthresh.append(c1)
+                            
+                        crmaxmean = np.mean(crmaxs); crmaxstd = np.std(crmaxs);
                         rmaxmean = np.mean(rmaxs); rmaxstd = np.std(rmaxs);
+                        csthreshmean = np.mean(csthresh)
+                        csthreshstd = np.std(csthresh)
+
                         ncomp = np.unique(df5.nverticescomp)[0] # all the same
                         data.append([nucleipref, model, n, ncomp, k, seed,
-                            cmaxmean, cmaxstd, rmaxmean, rmaxstd])
+                            crmaxmean, crmaxstd, rmaxmean, rmaxstd,
+                            csthreshmean, csthreshstd])
 
     cols = 'nucleipref,model,nverticesfull,nverticescomp,avgdegree,seed,' \
-            'cmaxmean,cmaxstd,rmaxmean,rmaxstd'.split(',')
+            'crmaxmean,crmaxstd,rmaxmean,rmaxstd,csthreshmean,csthreshstd' \
+            .split(',')
     dffinal = pd.DataFrame(data, columns=cols)
     dffinal.to_csv(rmaxpath, index=False)
     return dffinal
@@ -309,6 +325,7 @@ def plot_cmax_rmax(dfrmax, outdir):
 
     models = np.unique(df.model)
 
+    nplots = 3
     data = []
     for nverticesfull in np.unique(df.nverticesfull):
         df1 = df.loc[df.nverticesfull == nverticesfull]
@@ -317,26 +334,34 @@ def plot_cmax_rmax(dfrmax, outdir):
             for seed in np.unique(df2.seed):
                 df3 = df2.loc[df2.seed == seed]
 
-                fig, axs = plt.subplots(1, 2,
-                            figsize=(2*figscale, 1*figscale))
+                fig, axs = plt.subplots(1, nplots,
+                            figsize=(nplots*figscale, 1*figscale))
 
                 for nucleipref in np.unique(df3.nucleipref):
                     df4 = df3.loc[df3.nucleipref == nucleipref]
+
                     rmaxmean = df4.rmaxmean; rmaxstd = df4.rmaxstd
                     axs[0].errorbar(range(len(rmaxmean)), rmaxmean,
                                     yerr=rmaxstd, label=nucleipref, alpha=0.8)
-                    cmaxmean = df4.cmaxmean; cmaxstd = df4.cmaxstd
-                    axs[1].errorbar(range(len(cmaxmean)), cmaxmean,
-                                    yerr=cmaxstd, label=nucleipref, alpha=0.8)
+
+                    crmaxmean = df4.crmaxmean; crmaxstd = df4.crmaxstd
+                    axs[1].errorbar(range(len(crmaxmean)), crmaxmean,
+                                    yerr=crmaxstd, label=nucleipref, alpha=0.8)
+
+                    csthreshmean = df4.csthreshmean; csthreshstd = df4.csthreshstd
+                    axs[2].errorbar(range(len(csthreshmean)), csthreshmean,
+                                    yerr=csthreshstd, label=nucleipref, alpha=0.8)
 
 
-                for i in range(2):
+                for i in range(nplots):
                     axs[i].set_xticks(range(len(models)))
                     axs[i].set_xticklabels(np.unique(df.model), rotation=-45)
                     axs[i].set_xlabel('Models')
                     axs[i].legend(loc='upper right')
 
-                axs[0].set_ylabel('rmax'); axs[1].set_ylabel('cmax');
+                axs[0].set_ylabel('rmax')
+                axs[1].set_ylabel('c_rmax')
+                axs[2].set_ylabel('c_sthresh')
 
                 # plt.legend(loc='upper right')
                 f = '{}_{}_{:02d}.png'.format(nverticesfull, avgdegree, seed)
@@ -491,7 +516,7 @@ def main():
     # plot_r_s(df, pjoin(args.outdir, 'plots_r_s'), 1)
     # dfcoeffs = find_coeffs(df, args.outdir)
     dfrmax = get_cmax_rmax(df, args.outdir)
-    plot_cmax_rmax(dfrmax, pjoin(args.outdir, 'cmaxrmax'))
+    plot_cmax_rmax(dfrmax, pjoin(args.outdir, 'rmax_sthresh'))
     # plot_parameters_pairwise(dfcoeffs, pjoin(args.outdir, 'params'))
     return
     plot_slice(dfcoeffs, 'avgdegree', 12, pjoin(args.outdir, 'slicek12'))
