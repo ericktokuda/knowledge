@@ -265,7 +265,7 @@ def run_subexperiment(gorig, nucleipref, expid, probfunc, lens):
         elif nucleipref == 'dist':
             for j in range(maxntries):
                 newnode = np.random.choice(resoids)
-                mindist = np.min(lens[newnode][nuclids])
+                mindist = np.min(lens[newnode][nuclei[0]])
                 if np.random.rand() < probfunc(mindist): break
         elif nucleipref == 'dila':
             newnode = newreso[nucleusidx - 1]
