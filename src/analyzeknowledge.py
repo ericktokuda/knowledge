@@ -309,7 +309,7 @@ def plot_slice(dforig, fixed, fixedparam, outdir):
             axs[j].set_title(nucleipref)
 
         plt.legend(loc='upper right')
-        plotpath = pjoin(outdir, '{}.png'.format(param))
+        plotpath = pjoin(outdir, '{}.pdf'.format(param))
         plt.tight_layout()
         plt.savefig(plotpath)
         plt.close()
@@ -367,7 +367,7 @@ def plot_cmax_rmax(dfrmax, outdir):
                 axs[2].set_ylabel(r'$c_{sthresh}$')
 
                 # plt.legend(loc='upper right')
-                f = '{}_{}_{:02d}.png'.format(nverticesfull, avgdegree, seed)
+                f = '{}_{}_{:02d}.pdf'.format(nverticesfull, avgdegree, seed)
                 plotpath = pjoin(outdir, f)
                 plt.tight_layout(w_pad=3)
                 plt.savefig(plotpath)
