@@ -321,6 +321,7 @@ def plot_cmax_rmax(dfrmax, outdir):
     os.makedirs(outdir, exist_ok=True)
 
     df = dfrmax.copy()
+    alpha = .7
     figscale = 4
 
     models = np.unique(df.model)
@@ -342,31 +343,33 @@ def plot_cmax_rmax(dfrmax, outdir):
 
                     rmaxmean = df4.rmaxmean; rmaxstd = df4.rmaxstd
                     axs[0].errorbar(range(len(rmaxmean)), rmaxmean,
-                                    yerr=rmaxstd, label=nucleipref, alpha=0.8)
+                                    yerr=rmaxstd, label=nucleipref, alpha=alpha)
 
                     crmaxmean = df4.crmaxmean; crmaxstd = df4.crmaxstd
                     axs[1].errorbar(range(len(crmaxmean)), crmaxmean,
-                                    yerr=crmaxstd, label=nucleipref, alpha=0.8)
+                                    yerr=crmaxstd, label=nucleipref, alpha=alpha)
 
                     csthreshmean = df4.csthreshmean; csthreshstd = df4.csthreshstd
                     axs[2].errorbar(range(len(csthreshmean)), csthreshmean,
-                                    yerr=csthreshstd, label=nucleipref, alpha=0.8)
+                                    yerr=csthreshstd, label=nucleipref, alpha=alpha)
 
 
+                modelsstr = [ s.upper() for s in np.unique(df.model)]
                 for i in range(nplots):
                     axs[i].set_xticks(range(len(models)))
-                    axs[i].set_xticklabels(np.unique(df.model), rotation=-45)
+                    axs[i].set_xticklabels(modelsstr, rotation=-45)
                     axs[i].set_xlabel('Models')
-                    axs[i].legend(loc='upper right')
+                    axs[i].legend(loc='lower left')
+                axs[1].legend(loc='upper left')
 
-                axs[0].set_ylabel('rmax')
-                axs[1].set_ylabel('c_rmax')
-                axs[2].set_ylabel('c_sthresh')
+                axs[0].set_ylabel(r'$r_{max}$')
+                axs[1].set_ylabel(r'$c_{rmax}$')
+                axs[2].set_ylabel(r'$c_{sthresh}$')
 
                 # plt.legend(loc='upper right')
                 f = '{}_{}_{:02d}.png'.format(nverticesfull, avgdegree, seed)
                 plotpath = pjoin(outdir, f)
-                plt.tight_layout()
+                plt.tight_layout(w_pad=1.9)
                 plt.savefig(plotpath)
                 plt.close()
 
