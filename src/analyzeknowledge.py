@@ -108,7 +108,7 @@ def parse_results(df, un, outdir):
     return dffinal
 
 ##########################################################
-def find_coeffs(df, outdir):
+def find_coeffs(df, plot, outdir):
     """Parse results from simulation"""
     info(inspect.stack()[0][3] + '()')
 
@@ -155,7 +155,8 @@ def find_coeffs(df, outdir):
 
                         outpath = pjoin(outdir, '{}_{}_{}_{}_{}.png'.format(
                             nucleipref, model, n, k, seed))
-                        scatter_c_vs_r(xs, ys, outpath, func=FUNC, params=params)
+                        if plot:
+                            scatter_c_vs_r(xs, ys, outpath, func=FUNC, params=params)
 
                         ncomp = np.unique(df5.nverticescomp)[0] # all the same
                         data.append([nucleipref, model, n, ncomp, k, seed, cmax,
@@ -280,6 +281,10 @@ def plot_slice(dforig, fixed, fixedparam, outdir):
     info(inspect.stack()[0][3] + '()')
     os.makedirs(outdir, exist_ok=True)
 
+    if not fixedparam in dforig[fixed]:
+        info('No match for {}={}'.format(fixed, fixedparam))
+        return
+
     df = dforig.loc[dforig[fixed] == fixedparam]
     varying = 'avgdegree' if fixed == 'nverticescomp' else 'nverticescomp'
 
@@ -326,7 +331,7 @@ def plot_cmax_rmax(dfrmax, outdir):
 
     models = np.unique(df.model)
 
-    nplots = 3
+    nplots = 2
     data = []
     for nverticesfull in np.unique(df.nverticesfull):
         df1 = df.loc[df.nverticesfull == nverticesfull]
@@ -345,12 +350,8 @@ def plot_cmax_rmax(dfrmax, outdir):
                     axs[0].errorbar(range(len(rmaxmean)), rmaxmean,
                                     yerr=rmaxstd, label=nucleipref, alpha=alpha)
 
-                    crmaxmean = df4.crmaxmean; crmaxstd = df4.crmaxstd
-                    axs[1].errorbar(range(len(crmaxmean)), crmaxmean,
-                                    yerr=crmaxstd, label=nucleipref, alpha=alpha)
-
                     csthreshmean = df4.csthreshmean; csthreshstd = df4.csthreshstd
-                    axs[2].errorbar(range(len(csthreshmean)), csthreshmean,
+                    axs[1].errorbar(range(len(csthreshmean)), csthreshmean,
                                     yerr=csthreshstd, label=nucleipref, alpha=alpha)
 
 
@@ -360,11 +361,9 @@ def plot_cmax_rmax(dfrmax, outdir):
                     axs[i].set_xticklabels(modelsstr, rotation=-45)
                     axs[i].set_xlabel('Models')
                     axs[i].legend(loc='lower left')
-                axs[1].legend(loc='upper left')
 
                 axs[0].set_ylabel(r'$r_{max}$')
-                axs[1].set_ylabel(r'$c_{rmax}$')
-                axs[2].set_ylabel(r'$c_{sthresh}$')
+                axs[1].set_ylabel(r'$c_{sthresh}$')
 
                 # plt.legend(loc='upper right')
                 f = '{}_{}_{:02d}.pdf'.format(nverticesfull, avgdegree, seed)
@@ -503,6 +502,20 @@ def plot_r_s(dforig, outdir, sample):
                     if int(seed) > 3: break
 
 ##########################################################
+def plot_correlation_rmax_crmax(dfrmax, outdir):
+    """Plot scatter and calculate correlation rmax x crmax"""
+    info(inspect.stack()[0][3] + '()')
+
+    import scipy; from scipy.stats import pearsonr
+    xs = dfrmax.crmaxmean
+    ys = dfrmax.rmaxmean
+    c, _ = pearsonr(xs, ys)
+    info('pearson corr:{}'.format(c))
+    plt.scatter(xs, ys, alpha=.5)
+    plt.gcf().set_size_inches(8, 4)
+    plt.savefig(pjoin(outdir, 'corr_rmax_crmax.png'))
+
+##########################################################
 def main():
     info(inspect.stack()[0][3] + '()')
     t0 = time.time()
@@ -517,8 +530,9 @@ def main():
     df = pd.read_csv(args.res)
 
     # plot_r_s(df, pjoin(args.outdir, 'plots_r_s'), 1)
-    # dfcoeffs = find_coeffs(df, args.outdir)
+    # dfcoeffs = find_coeffs(df, False, args.outdir)
     dfrmax = get_cmax_rmax(df, args.outdir)
+    plot_correlation_rmax_crmax(dfrmax, args.outdir)
     plot_cmax_rmax(dfrmax, pjoin(args.outdir, 'rmax_sthresh'))
     # plot_parameters_pairwise(dfcoeffs, pjoin(args.outdir, 'params'))
     return
