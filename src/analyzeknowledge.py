@@ -341,35 +341,41 @@ def plot_cmax_rmax(dfrmax, outdir):
                 df3 = df2.loc[df2.seed == seed]
 
                 fig, axs = plt.subplots(1, nplots,
-                            figsize=(nplots*figscale, .9*figscale))
+                            figsize=(nplots*figscale, .9*figscale),
+                                        squeeze=False)
 
                 for nucleipref in np.unique(df3.nucleipref):
                     df4 = df3.loc[df3.nucleipref == nucleipref]
 
                     rmaxmean = df4.rmaxmean; rmaxstd = df4.rmaxstd
-                    axs[0].errorbar(range(len(rmaxmean)), rmaxmean,
+                    axs[0, 0].errorbar(range(len(rmaxmean)), rmaxmean,
                                     yerr=rmaxstd, label=nucleipref, alpha=alpha)
 
                     csthreshmean = df4.csthreshmean; csthreshstd = df4.csthreshstd
-                    axs[1].errorbar(range(len(csthreshmean)), csthreshmean,
+                    axs[0, 1].errorbar(range(len(csthreshmean)), csthreshmean,
                                     yerr=csthreshstd, label=nucleipref, alpha=alpha)
 
 
                 modelsstr = [ s.upper() for s in np.unique(df.model)]
                 for i in range(nplots):
-                    axs[i].set_xticks(range(len(models)))
-                    axs[i].set_xticklabels(modelsstr, rotation=-45)
-                    axs[i].set_xlabel('Models')
-                    axs[i].legend(loc='lower left')
+                    axs[0, i].set_xticks(range(len(models)))
+                    axs[0, i].set_xticklabels(modelsstr, rotation=-45)
+                    axs[0, i].set_xlabel('Models')
+                    axs[0, i].legend(loc='lower left')
 
-                axs[0].set_ylabel(r'$r_{max}$')
-                axs[1].set_ylabel(r'$c_{s0}$')
+                axs[0, 0].set_ylabel(r'$r_{max}$')
+                axs[0, 1].set_ylabel(r'$c_{s0}$')
 
                 # plt.legend(loc='upper right')
                 f = '{}_{}_{:02d}.pdf'.format(nverticesfull, avgdegree, seed)
                 plotpath = pjoin(outdir, f)
                 plt.tight_layout(w_pad=3)
                 plt.savefig(plotpath)
+                import myutils
+                from myutils import plot
+                plot.export_all_axis(axs, fig, ['_r', '_s'],
+                                     outdir=outdir, pad=[.6, .65, .2, .2],
+                                     prefix=f.replace('.pdf', ''))
                 plt.close()
 
 ##########################################################
