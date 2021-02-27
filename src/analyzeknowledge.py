@@ -336,7 +336,7 @@ def plot_cmax_rmax(dfrmax, outdir):
                 df3 = df2.loc[df2.seed == seed]
 
                 fig, axs = plt.subplots(1, nplots,
-                            figsize=(nplots*figscale, 1*figscale))
+                            figsize=(nplots*figscale, .9*figscale))
 
                 for nucleipref in np.unique(df3.nucleipref):
                     df4 = df3.loc[df3.nucleipref == nucleipref]
@@ -369,7 +369,7 @@ def plot_cmax_rmax(dfrmax, outdir):
                 # plt.legend(loc='upper right')
                 f = '{}_{}_{:02d}.png'.format(nverticesfull, avgdegree, seed)
                 plotpath = pjoin(outdir, f)
-                plt.tight_layout(w_pad=1.9)
+                plt.tight_layout(w_pad=3)
                 plt.savefig(plotpath)
                 plt.close()
 
