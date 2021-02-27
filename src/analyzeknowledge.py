@@ -363,7 +363,7 @@ def plot_cmax_rmax(dfrmax, outdir):
                     axs[i].legend(loc='lower left')
 
                 axs[0].set_ylabel(r'$r_{max}$')
-                axs[1].set_ylabel(r'$c_{sthresh}$')
+                axs[1].set_ylabel(r'$c_{s0}$')
 
                 # plt.legend(loc='upper right')
                 f = '{}_{}_{:02d}.pdf'.format(nverticesfull, avgdegree, seed)
@@ -512,7 +512,9 @@ def plot_correlation_rmax_crmax(dfrmax, outdir):
     c, _ = pearsonr(xs, ys)
     info('pearson corr:{}'.format(c))
     plt.scatter(xs, ys, alpha=.5)
-    plt.gcf().set_size_inches(8, 4)
+    plt.gcf().set_size_inches(8, 6)
+    plt.xlabel('c'); plt.ylabel('rmax');
+    plt.title('pearson coeff: {:.02f}'.format(c))
     plt.savefig(pjoin(outdir, 'corr_rmax_crmax.png'))
 
 ##########################################################
