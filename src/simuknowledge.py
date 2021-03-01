@@ -309,7 +309,8 @@ def run_subexperiment(gorig, nucleipref, expid, probfunc, lens):
         dists = g.shortest_paths(nuclids)[0]
         newreso = np.argsort(dists)[1:] # Excluding self
 
-    for nucleusidx in range(1, nvertices): #1st stop condition
+    # for nucleusidx in range(1, nvertices): #1st stop condition
+    for nucleusidx in range(1, maxnuclei): #1st stop condition
         if nucleipref == 'betv':
             probs = betvs[resoids]/np.sum(betvs[resoids])
             newnode = np.random.choice(resoids, p=probs)
