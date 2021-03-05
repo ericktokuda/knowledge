@@ -508,6 +508,92 @@ def plot_r_s(dforig, outdir, sample):
                     if int(seed) > 3: break
 
 ##########################################################
+def plot_fig_article_rs(dforig, outdir, sample):
+    """Plot r and s means for each city"""
+    info(inspect.stack()[0][3] + '()')
+
+    os.makedirs(outdir, exist_ok=True)
+
+    W = 500; H = 200
+
+    df = dforig.copy()
+    del df['nverticesfull']
+    aux = df.groupby(['model', 'avgdegree', 'nucleipref',
+                      'seed', 'nverticescomp', 'c'])
+    means = aux.mean()
+    stds = aux.std()
+    allrows = np.array(list(means.index)).astype(str)
+
+    # assuming the order of the indices are: (model, k, nucleipref, seed, n, c)
+    for model in np.unique(allrows[:, 0]):
+        rows1 = allrows[np.where(allrows[:, 0] == model)[0], :]
+        for k in np.unique(rows1[:, 1]):
+            rows2 = rows1[np.where(rows1[:, 1] == str(k))[0], :]
+            for nucleipref in np.unique(rows2[:, 2]):
+                rows3 = rows2[np.where(rows2[:, 2] == str(nucleipref))[0], :]
+                for seed in np.unique(rows3[:, 3]):
+                    rows4 = rows3[np.where(rows3[:, 3] == str(seed))[0], :]
+                    for n in np.unique(rows4[:, 4]):
+                        rows5 = rows4[np.where(rows4[:, 4] == str(n))[0], :]
+                        cs = [float(c) for c in np.unique(rows5[:, 5])]
+                        rm = np.ones(len(cs)); rs = rm.copy();
+                        sm = rm.copy(); ss = rm.copy();
+                        for j, c in enumerate(cs):
+                            rm[j] = means.loc[model, int(k), nucleipref,
+                                          int(seed), int(n), c].r
+                            rs[j] = stds.loc[model, int(k), nucleipref,
+                                          int(seed), int(n), c].r
+                            sm[j] = means.loc[model, int(k), nucleipref,
+                                          int(seed), int(n), c].s
+                            ss[j] = stds.loc[model, int(k), nucleipref,
+                                          int(seed), int(n), c].s
+
+                        fig, ax = plt.subplots(1, 2, figsize=(W*.01, H*.01),
+                                dpi=100)
+
+                        indmax = np.argmax(rm)
+                        ax[0].scatter(cs[indmax], rm[indmax], c='grey')
+                        ax[0].vlines(cs[indmax], 0, rm[indmax],
+                                     linestyle="dashed", colors='grey', linewidth=1)
+                        ax[0].hlines(rm[indmax], 0, cs[indmax],
+                                     linestyle="dashed", colors='grey', linewidth=1)
+
+                        ax[0].errorbar(cs, rm, yerr=rs, c='m')
+                        ax[0].set_xlabel('c'); ax[0].set_ylabel('r')
+                        ax[0].set_xlim(0, 1); ax[0].set_ylim(0, 1)
+                        ax[0].set_xticks([0, cs[indmax], 1])
+                        ax[0].set_yticks([0, rm[indmax], 1])
+                        ax[0].set_xticklabels([0, r'$c_{rmax}$', 1])
+                        ax[0].set_yticklabels([0, r'$r_{max}$', 1])
+                        ax[0].get_xticklabels()[1].set_color("grey")
+                        ax[0].get_yticklabels()[1].set_color("grey")
+
+
+                        ind0 = np.where(sm < 0.707)[0][0]
+                        ax[1].scatter(cs[ind0], sm[ind0], c='grey')
+                        ax[1].vlines(cs[ind0], 0, sm[ind0],
+                                     linestyle="dashed", colors='grey', linewidth=1)
+                        ax[1].hlines(sm[ind0], 0, cs[ind0],
+                                     linestyle="dashed", colors='grey', linewidth=1)
+
+                        ax[1].errorbar(cs, sm, yerr=ss, c='m')
+                        ax[1].set_xlabel('c'); ax[1].set_ylabel('s')
+                        ax[1].set_xlim(0, 1); ax[1].set_ylim(0, 1)
+                        ax[1].set_xticks([cs[ind0], 1])
+                        ax[1].set_yticks([0, sm[ind0], 1])
+                        ax[1].set_xticklabels([r'$c_{s0}$', 1])
+                        ax[1].set_yticklabels([0, r'$s_0$', 1])
+                        ax[1].get_xticklabels()[0].set_color("grey")
+                        ax[1].get_yticklabels()[1].set_color("grey")
+
+                        outpath = pjoin(outdir, '{}_{}_{}_{}_{}.pdf'.format(
+                            model, k, nucleipref, n, seed))
+                        plt.tight_layout(w_pad=2, pad=0)
+                        plt.savefig(outpath)
+                        plt.close()
+                    if int(seed) > 3: break
+
+##########################################################
 def plot_correlation_rmax_crmax(dfrmax, outdir):
     """Plot scatter and calculate correlation rmax x crmax"""
     info(inspect.stack()[0][3] + '()')
