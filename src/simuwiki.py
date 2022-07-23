@@ -45,7 +45,7 @@ def generate_graph(model, nvertices, avgdegree, rewiringprob,
         radius = get_rgg_params(nvertices, avgdegree)
         g = igraph.Graph.GRG(nvertices, radius)
     else: #Graphml path
-        info('Loading graphml')
+        # info('Loading graphml')
         from myutils import graph
         modelpath = pjoin(graphmldir, model + '.graphml')
         g = graph.simplify_graphml(modelpath, directed=False)
@@ -185,57 +185,6 @@ def get_rgg_params(nvertices, avgdegree):
     return scipy.optimize.brentq(f, 0.0001, 10000)
 
 ##########################################################
-def plot_graph(g, model, plotpath):
-    """Plot graph"""
-    info(inspect.stack()[0][3] + '()')
-
-    import matplotlib.collections as mc
-
-    if model == 'la': layoutmodel = 'grid'
-    else: layoutmodel = 'fr'
-
-    aux = np.array(g.layout(layoutmodel).coords)
-    vcoords = -1 + 2*(aux - np.min(aux, 0))/(np.max(aux, 0)-np.min(aux, 0)) # minmax
-
-    ecoords = []
-    for e in g.es:
-        ecoords.append([ [float(vcoords[e.source][0]),
-            float(vcoords[e.source][1])],
-            [float(vcoords[e.target][0]),
-            float(vcoords[e.target][1])], ])
-
-    figscale = 3.7
-    fig, ax = plt.subplots(figsize=(figscale, figscale))
-
-    cmap = plt.cm.Blues
-    cmaplist = [cmap(i) for i in range(cmap.N)]
-
-    cmap = matplotlib.colors.LinearSegmentedColormap.from_list(
-        'Custom cmap', cmaplist, cmap.N)
-
-    bounds = range(0, g.vcount())
-    
-    norm = matplotlib.colors.BoundaryNorm(bounds, cmap.N)
-
-    sc = ax.scatter(vcoords[:, 0], vcoords[:, 1], c=g.vs['nucleiorder'],
-            cmap=cmap, norm=norm,
-            linewidths=0, alpha=1, s=500, zorder=10)
-
-    segs = mc.LineCollection(ecoords, colors='k', linewidths=.5, alpha=.5)
-    ax.add_collection(segs)
-
-    for i in range(g.vcount()):
-        x, y = vcoords[i, :];
-        label = g.vs['nucleiorder'][i]
-        ax.annotate(label,  xy=(x, y), color='k', weight='heavy',
-                    horizontalalignment='center',
-                    verticalalignment='center', zorder=11)
-
-    ax.axis('off')
-    plt.tight_layout()
-    plt.savefig(plotpath)
-
-##########################################################
 def run_experiment(params):
     """Sequential runs, given the model. nvertices, avgdegree, nucleipref,
     niter, seed, decayparams, and outdir"""
@@ -288,6 +237,7 @@ def run_experiment(params):
 
     ##########################################################
 
+
     # prob. based on topological distance
     probfunc = lambda x: decayparam1 * np.exp(- x * decayparam2)
 
@@ -298,11 +248,8 @@ def run_experiment(params):
         if graphoutdir:
             f = '_'.join(str(x) for x in [model, nvertices, avgdegree,
                                           nucleipref, seed, i])
-            graphmlpath = pjoin(graphoutdir, f + '.graphml')
-            newg.write_graphml(graphmlpath)
-            plotpath = pjoin(graphoutdir, f + '.pdf')
-            plot_graph(newg, model, plotpath)
-
+            outpath = pjoin(graphoutdir, f + '.graphml')
+            newg.write_graphml(outpath)
     return ret
 
 ##########################################################
@@ -337,7 +284,6 @@ def run_subexperiment(gorig, nucleipref, expid, probfunc, lens):
         dists = g.shortest_paths(nuclids)[0]
         newreso = np.argsort(dists)[1:] # Excluding self
 
-    # for nucleusidx in range(1, nvertices): #1st stop condition
     for nucleusidx in range(1, maxnuclei): #1st stop condition
         if nucleipref == 'betv':
             probs = betvs[resoids]/np.sum(betvs[resoids])
@@ -376,7 +322,7 @@ def run_subexperiment(gorig, nucleipref, expid, probfunc, lens):
 
         nuclei[nucleusidx] = newnode
 
-    if -1 in nuclei: nuclei = nuclei[:np.where(nuclei == -1)[0][0]]
+    nuclei = nuclei[:np.where(nuclei == -1)[0][0]]
     g.vs['nucleiorder'] = -1
     for j, v in enumerate(nuclei):
         g.vs[v]['nucleiorder'] = j
@@ -401,14 +347,17 @@ def main():
     os.makedirs(args.outdir, exist_ok=True)
     readmepath = create_readme(sys.argv, args.outdir)
 
-    models = ['ba', 'er', 'gr'] # ['ba', 'er', 'gm', 'gr']
-    nvertices = [300, 700] # [100, 300, 500, 700]
-    avgdegrees = [12, 18] # [6, 12, 18, 24]
-    nucleiprefs = ['betv', 'degr', 'dila', 'dist', 'unif'] # ['betv', 'degr', 'dila', 'dist', 'unif']
+    models = [ 'Bio', 'Che', 'Com', 'Hea', 'Mat', 'Phi',
+            'Eng', 'His', 'Med', 'Phy', 'Soc']
+    nvertices = [0] # [100, 300, 500, 700]
+    avgdegrees = [0] # [6, 12, 18, 24]
+    # nucleiprefs = ['betv', 'degr', 'dila', 'dist', 'unif'] # ['betv', 'degr', 'dila', 'dist', 'unif']
+    nucleiprefs = ['betv']
     niter = 40 # 40
-    nseeds = 50 # 50
+    nseeds = 1 # 50
     decayparam1 = 2.451
     decayparam2 = 1.253
+
 
     append_to_file(readmepath, 'models:{}, nvertices:{}, avgdegrees:{},' \
                    'nucleiprefs:{}, niter:{}, nseeds:{},' \
@@ -437,7 +386,7 @@ def main():
                            ))
 
     if args.nprocs == 1:
-        info('Running serially (nprocs:{})'.format(args.nprocs))
+        # info('Running serially (nprocs:{})'.format(args.nprocs))
         ret = [run_experiment(p) for p in params]
     else:
         info('Running in parallel (nprocs:{})'.format(args.nprocs))
