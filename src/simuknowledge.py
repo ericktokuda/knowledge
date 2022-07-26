@@ -337,6 +337,8 @@ def run_subexperiment(gorig, nucleipref, expid, probfunc, lens):
         dists = g.shortest_paths(nuclids)[0]
         newreso = np.argsort(dists)[1:] # Excluding self
 
+    neighsall = [np.array(g.neighbors(vv)) for vv in range(nvertices)]
+
     # for nucleusidx in range(1, nvertices): #1st stop condition
     for nucleusidx in range(1, maxnuclei): #1st stop condition
         if nucleipref == 'betv':
@@ -359,12 +361,39 @@ def run_subexperiment(gorig, nucleipref, expid, probfunc, lens):
         nuclids = np.where(np.array(g.vs['type']) == NUCLEUS)[0]
         resoids = np.where(np.array(g.vs['type']) == RESOURCE)[0]
 
-        neighs = []
+        neightypesall = np.array(g.vs['type'])
+
+        ##########################################################
+        neighs1 = []
         for nucl in nuclids:
-            neighids = np.array(g.neighbors(nucl))
-            neightypes = np.array(g.vs[neighids.tolist()]['type'])
+            # neighids = np.array(g.neighbors(nucl))
+            neighids = neighsall[nucl]
+            neighs1.extend(neighids)
+
+        neighs2 = []
+        for neigh1 in neighs1:
+            neighids = neighsall[neigh1]
+            neightypes = neightypesall[neighids.tolist()]
             neighresoids = np.where(neightypes == RESOURCE)[0]
-            neighs.extend(neighids[neighresoids])
+
+            # Check if they have already been included
+            aux = []
+            for vv in neighids[neighresoids]:
+                if not vv in neighs1:
+                    aux.append(vv)
+
+            neighs2.extend(aux)
+
+        neighs = neighs2
+        ##########################################################
+
+        # neighs = []
+        # for nucl in nuclids:
+            # neighids = neighsall[nucl]
+            # neightypes = neightypesall[neighids.tolist()])
+            # breakpoint()
+            # neighresoids = np.where(neightypes == RESOURCE)[0]
+            # neighs.extend(neighids[neighresoids])
 
         lenunique = len(set(neighs))
         lenrepeated = len(neighs)
@@ -402,8 +431,8 @@ def main():
     readmepath = create_readme(sys.argv, args.outdir)
 
     models = ['ba', 'er', 'gr'] # ['ba', 'er', 'gm', 'gr']
-    nvertices = [300, 700] # [100, 300, 500, 700]
-    avgdegrees = [12, 18] # [6, 12, 18, 24]
+    nvertices = [300] # [100, 300, 500, 700]
+    avgdegrees = [12] # [6, 12, 18, 24]
     nucleiprefs = ['betv', 'degr', 'dila', 'dist', 'unif'] # ['betv', 'degr', 'dila', 'dist', 'unif']
     niter = 40 # 40
     nseeds = 50 # 50
